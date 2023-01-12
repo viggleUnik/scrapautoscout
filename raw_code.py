@@ -81,29 +81,30 @@ def all_article_ids(search_url: str = None,
         n_results = get_numbers_of_offers_from_url(search_url)
         print(f'Maker {maker} nr {n_results}')
 
-        if n_results > max_results:
-            for year in years:
-                search_url = 'https://www.autoscout24.com/lst'
-                search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year)
-                print(search_url)
-                n_results = get_numbers_of_offers_from_url(search_url)
-                if n_results == 0:
-                    pass
-                elif n_results < max_results:
-                    pages_articles = calculate_nr_of_pages(n_results)
-                    print(f'year {year} res {n_results} nr_pages {pages_articles[0]} article on last {pages_articles[1]}')
+        for year in years:
+            search_url = 'https://www.autoscout24.com/lst'
+            search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year)
+            print(search_url)
+            n_results = get_numbers_of_offers_from_url(search_url)
 
-                elif n_results > max_results:
-                    print(f'year {year} total res {n_results}')
-                    for price_from, price_to in price_ranges:
-                        search_url = 'https://www.autoscout24.com/lst'
-                        search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year, pricefrom=price_from, priceto=price_to)
-                        n_results = get_numbers_of_offers_from_url(search_url)
-                        if n_results == 0:
-                            pass
-                        elif n_results > 0:
-                            pages_articles = calculate_nr_of_pages(n_results)
-                            print(f'res {n_results} nr_pages {pages_articles[0]} article on last {pages_articles[1]} pricefrom {price_from} priceto {price_to}')
+            if n_results == 0:
+                pass
+            elif n_results < max_results:
+                pages_articles = calculate_nr_of_pages(n_results)
+                print(f'year {year} res {n_results} nr_pages {pages_articles[0]} article on last {pages_articles[1]}')
+
+            elif n_results > max_results:
+                print(f'year {year} total res {n_results}')
+                for price_from, price_to in price_ranges:
+                    search_url = 'https://www.autoscout24.com/lst'
+                    search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year,
+                                                    pricefrom=price_from, priceto=price_to)
+                    n_results = get_numbers_of_offers_from_url(search_url)
+                    if n_results == 0:
+                        pass
+                    elif n_results > 0:
+                        pages_articles = calculate_nr_of_pages(n_results)
+                        print(f'res {n_results} nr_pages {pages_articles[0]} article on last {pages_articles[1]} pricefrom {price_from} priceto {price_to}')
 
 
 all_article_ids(search_url='https://www.autoscout24.com/lst',
@@ -114,42 +115,9 @@ all_article_ids(search_url='https://www.autoscout24.com/lst',
                 )
 
 
-
-
-def get_content_from_all_pages(
-        search_url: str,
-        headers: Dict = None,
-        max_pages: int = None,
-        max_sleep: int = 5,
-) -> List[BeautifulSoup]:
-    """
-    Get content of all pages for a given search
-    :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-    :param headers: headers
-    :param max_pages: 20 allowed
-    :return: list of BS
-    """
-
-    if headers is None:
-        headers = HEADERS
-
-    pages = []
-
-    for i in range(1, max_pages+1):
-        url_page = f'{search_url}&page={i}'
-        page = requests.get(url_page, headers=headers)
-        sleep(randint(0, max_sleep))
-        soup = BeautifulSoup(page.text, 'html.parser')
-        pages.append(soup)
-
-    return pages
-
 # scoatem numar flexibil de articole cand avem < 400
 # n_offers /20 art per pagina, aflam cate pagini sunt si scoatem
 # n_ofers mod 20 -> numarul de articole de ultima pagina incompleta
-
-
-
 
 
 

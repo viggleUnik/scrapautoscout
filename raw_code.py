@@ -33,7 +33,7 @@ def get_ofers_from_years():
 from time import sleep
 from random import randint
 
-
+#just commit
 max_results = 400
 top_makers = ['audi', 'bmw', 'ford', 'mercedes-benz', 'opel', 'volkswagen', 'renault']
 search_url = 'https://www.autoscout24.com/lst'

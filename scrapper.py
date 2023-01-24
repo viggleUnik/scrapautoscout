@@ -145,12 +145,13 @@ def get_article_ids(pages: List[BeautifulSoup], nr_articles_last: int = None) ->
 
 
 def get_all_ids_for_search_url(search_url: str, max_pages: int, last_page_articles: int):
-    # name_file = base64.b64encode(search_url.encode()).decode().replace('=', '') + '.json'
     name_file = base64.b64encode(search_url.encode()).decode()
     name_file = ''.join(c for c in name_file if c.isalnum())
     name_file = name_file + '.json'
 
-    path_file = f'cache/{name_file}'
+    dir_cache = f'cache/get_all_ids_for_search_url'
+    os.makedirs(dir_cache, exist_ok=True)
+    path_file = f'{dir_cache}/{name_file}'
 
     if os.path.exists(path_file):
         with open(path_file) as f:
@@ -250,7 +251,6 @@ def get_all_article_ids_forloop(
         for year in years:
             search_url = 'https://www.autoscout24.com/lst'
             search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year)
-            print(search_url)
             n_results = get_numbers_of_offers_from_url(search_url)
 
             if n_results == 0:

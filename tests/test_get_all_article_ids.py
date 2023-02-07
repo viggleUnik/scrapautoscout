@@ -1,6 +1,6 @@
 import unittest
 
-from scrapper import get_all_article_ids_forloop
+from scrapautoscout.scrapper import get_all_article_ids_forloop
 
 
 class TestGetAllArticleIDs(unittest.TestCase):

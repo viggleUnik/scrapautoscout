@@ -153,7 +153,7 @@ def get_hash_from_string(s: str) -> str:
 def get_all_ids_for_search_url(search_url: str, max_pages: int, last_page_articles: int):
     name_file = get_hash_from_string(search_url) + '.json'
 
-    dir_cache = f'cache/get_all_ids_for_search_url'
+    dir_cache = f'../cache/get_all_ids_for_search_url'
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{name_file}'
 
@@ -187,7 +187,7 @@ def get_json_data_from_article(
         soup = BeautifulSoup(page.text, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
     except requests.exceptions.RequestException as e:
-        print(f'error {e}')
+        log.debug(f'error {e}')
         pass
 
     return json_text
@@ -247,15 +247,12 @@ def calculate_nr_of_pages(nr_results: int) -> Tuple[int, int]:
 
 
 def get_all_article_ids_forloop(
-        max_results: int = None,
-        makers: List[str] = None,
-        years: List[int] = None,
-        price_ranges: List[List[int]] = None,
-        max_pages: int = 10_000,
+        max_results: int = config.MAX_RESULTS,
+        makers: List[str] = config.MAKERS,
+        years: List[int] = config.YEARS,
+        price_ranges: List[List[int]] = config.PRICE_RANGES,
 ):
     """Get All car ids cached in folder 'get_all_ids_for_search_url' """
-
-    total_nr_pages = 0
 
     # find results for makers
     for maker in makers:
@@ -270,32 +267,30 @@ def get_all_article_ids_forloop(
             elif n_results < max_results:
                 nr_of_pages, last_page_articles = calculate_nr_of_pages(nr_results=n_results)  # unpacking
                 ids = get_all_ids_for_search_url(search_url, nr_of_pages, last_page_articles)
-                total_nr_pages += nr_of_pages
-                if total_nr_pages > max_pages:
-                    log.debug('Reached max number of pages for this run. Exit.')
-                    return
+
             elif n_results > max_results:
+
                 for price_from, price_to in price_ranges:
                     search_url = 'https://www.autoscout24.com/lst'
                     search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year,
                                                     pricefrom=price_from, priceto=price_to)
                     n_results = get_numbers_of_offers_from_url(search_url)
+
                     if n_results == 0:
                         continue
                     elif n_results > 0:
                         nr_of_pages, last_page_articles = calculate_nr_of_pages(nr_results=n_results)
                         ids = get_all_ids_for_search_url(search_url, nr_of_pages, last_page_articles)
-                        total_nr_pages += nr_of_pages
-                        if total_nr_pages > max_pages:
-                            log.debug('Reached max number of pages for this run. Exit.')
-                            return
+
 
 def read_ids_json_files_from_cache():
     """Get car ids from cached json files"""
 
-    path_to_json = 'cache/get_all_ids_for_search_url/'
+    path_to_json = '../cache/get_all_ids_for_search_url/'
     json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
 
+    dir_get_content = f'../cache/get_content_id'
+    os.makedirs(dir_get_content, exist_ok=True)
     # file browsing in 'cache/get_all_ids_for_search_url'
     for jfile in json_files:
         with open(path_to_json + jfile, 'r') as file:
@@ -303,14 +298,12 @@ def read_ids_json_files_from_cache():
 
         # creating directory name for each given json file with ids
         dir_name = jfile.replace('.json', '')
-        folder_path = os.path.join('cache/get_content_id', dir_name)
+        folder_path = os.path.join('../cache/get_content_id', dir_name)
         create_folder_with_jsons_ids(list_ids, folder_path)
 
 
 def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
     """Get car information from site and create folder with jsons"""
-
-    print(f'CAR IDS {len(car_ids)}')
 
     os.makedirs(folder_path, exist_ok=True)
 
@@ -322,7 +315,7 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
         id_file_name = f'{folder_path}/{id}.json'
         # check if id_file exists in folder
         if os.path.exists(id_file_name):
-            print(f'exists {id}.json')
+            log.info(f'exists {id}.json')
             continue
         else:
             found = False

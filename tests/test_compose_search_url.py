@@ -1,6 +1,6 @@
 import unittest
 
-from scrapper import compose_search_url
+from scrapautoscout.scrapper import compose_search_url
 
 
 class TestComposeSearchUrl(unittest.TestCase):

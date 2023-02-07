@@ -1,6 +1,6 @@
 import unittest
 
-from scrapper import get_hash_from_string
+from scrapautoscout.scrapper import get_hash_from_string
 
 
 class TestGetHashFromString(unittest.TestCase):

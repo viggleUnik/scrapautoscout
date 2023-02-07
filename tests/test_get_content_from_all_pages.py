@@ -1,7 +1,7 @@
 import unittest
 from bs4 import BeautifulSoup
 
-from scrapper import get_content_from_all_pages
+from scrapautoscout.scrapper import get_content_from_all_pages
 
 
 class TestGetContentFromAllPages(unittest.TestCase):

@@ -1,6 +1,7 @@
 cache/
 .idea/
 venv/
+.venv
 __pycache__/
 artifacts
 test/__pycache__/

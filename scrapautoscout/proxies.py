@@ -6,7 +6,7 @@ from typing import List
 import random
 import logging
 
-import config
+from scrapautoscout import config
 
 
 log = logging.getLogger(os.path.basename(__file__))

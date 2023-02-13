@@ -9,8 +9,8 @@ import base64
 import hashlib
 import random
 
-import config
-from proxies import get_valid_proxies_multithreading
+from scrapautoscout import config
+from scrapautoscout.proxies import get_valid_proxies_multithreading
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -101,6 +101,7 @@ def get_content_from_all_pages(
                 log.error(f'error {e}')
             pass
 
+    return pages
 
 
 def get_article_ids(pages: List[BeautifulSoup], nr_articles_last: int = None) -> List[str]:
@@ -153,7 +154,7 @@ def get_hash_from_string(s: str) -> str:
 def get_all_ids_for_search_url(search_url: str, max_pages: int, last_page_articles: int):
     name_file = get_hash_from_string(search_url) + '.json'
 
-    dir_cache = f'../cache/get_all_ids_for_search_url'
+    dir_cache = f'{config.DIR_CACHE}/get_all_ids_for_search_url'
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{name_file}'
 
@@ -164,7 +165,7 @@ def get_all_ids_for_search_url(search_url: str, max_pages: int, last_page_articl
         list_bs = get_content_from_all_pages(search_url, max_pages=max_pages)
         ids = get_article_ids(list_bs, last_page_articles)
         with open(path_file, 'w') as f:
-            json.dump(ids, f)
+            json.dump(ids, f, indent=2)
 
     return ids
 
@@ -266,6 +267,7 @@ def get_all_article_ids_forloop(
                 continue
             elif n_results < max_results:
                 nr_of_pages, last_page_articles = calculate_nr_of_pages(nr_results=n_results)  # unpacking
+                log.debug(f'NR OF PAGES {nr_of_pages} and LAST PAGE ARTICLES {last_page_articles}')
                 ids = get_all_ids_for_search_url(search_url, nr_of_pages, last_page_articles)
 
             elif n_results > max_results:
@@ -280,16 +282,17 @@ def get_all_article_ids_forloop(
                         continue
                     elif n_results > 0:
                         nr_of_pages, last_page_articles = calculate_nr_of_pages(nr_results=n_results)
+                        log.debug(f'NR OF PAGES {nr_of_pages} and LAST PAGE ARTICLES {last_page_articles}')
                         ids = get_all_ids_for_search_url(search_url, nr_of_pages, last_page_articles)
 
 
 def read_ids_json_files_from_cache():
     """Get car ids from cached json files"""
 
-    path_to_json = '../cache/get_all_ids_for_search_url/'
+    path_to_json = f'{config.DIR_CACHE}/get_all_ids_for_search_url/'
     json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
 
-    dir_get_content = f'../cache/get_content_id'
+    dir_get_content = f'{config.DIR_CACHE}/get_content_id'
     os.makedirs(dir_get_content, exist_ok=True)
     # file browsing in 'cache/get_all_ids_for_search_url'
     for jfile in json_files:
@@ -298,7 +301,7 @@ def read_ids_json_files_from_cache():
 
         # creating directory name for each given json file with ids
         dir_name = jfile.replace('.json', '')
-        folder_path = os.path.join('../cache/get_content_id', dir_name)
+        folder_path = os.path.join(dir_get_content, dir_name)
         create_folder_with_jsons_ids(list_ids, folder_path)
 
 
@@ -340,7 +343,7 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
                 if json_text is not None:
                     # create file with car info
                     with open(id_file_name, 'w') as f:
-                        json.dump(json_text, f)
+                        json.dump(json_text, f, indent=2)
                     print(f'SUCCESS!')
                     found = True
                 else:
@@ -348,7 +351,7 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
                         found = True
                         # create an empty json for further verification
                         with open(id_file_name, 'w') as f:
-                            json.dump({}, f)
+                            json.dump({}, f, indent=2)
                         request_try = 0
 
                     elif request_try < 3:

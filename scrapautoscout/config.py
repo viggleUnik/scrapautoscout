@@ -5,9 +5,10 @@ from pathlib import Path
 
 # Dirs
 # *****************************************************************************
-DIR_PROJ = (Path(__file__) / '..').resolve()
-DIR_ARTIFACTS = f'{DIR_PROJ}/artifacts'
+DIR_ARTIFACTS = os.path.join(os.getcwd(), 'artifacts')
 os.makedirs(DIR_ARTIFACTS, exist_ok=True)
+DIR_CACHE = os.path.join(os.getcwd(), 'cache')
+os.makedirs(DIR_CACHE, exist_ok=True)
 
 # Logging
 # *****************************************************************************

@@ -81,8 +81,13 @@ def get_content_from_all_pages(
     for i in range(1, max_pages + 1):
         found = False
         while not found:
+            # case proxies list is empty, we go further only if we have at least 3 valid proxies
             if len(proxies_valid_ips) == 0:
-                proxies_valid_ips = get_valid_proxies_multithreading()
+                proxies_min = False
+                while not proxies_min:
+                    proxies_valid_ips = get_valid_proxies_multithreading()
+                    if len(proxies_valid_ips) > 3:
+                        proxies_min = True
 
             url_page = f'{search_url}&page={i}'
             proxy_ip = random.choice(proxies_valid_ips)
@@ -324,8 +329,13 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
             found = False
             request_try = 0
             while not found:
+                # case proxies list is empty, we go further only if we have at least 3 valid proxies
                 if len(proxies_valid_ips) == 0:
-                    proxies_valid_ips = get_valid_proxies_multithreading()
+                    min_valid = False
+                    while not min_valid:
+                        proxies_valid_ips = get_valid_proxies_multithreading()
+                        if len(proxies_valid_ips) > 3:
+                            min_valid = True
 
                 # choose randon proxy from list
                 proxy_ip = random.choice(proxies_valid_ips)

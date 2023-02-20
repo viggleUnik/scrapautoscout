@@ -203,7 +203,7 @@ def get_details_from_raw_json(json_text: str) -> Dict:
     # TODO: parse the entire json, then return only the content under: object > props > pageProps > listingDetails
     #       return data that can be added to table (name: value)
 
-    item_json = json.loads(json_text)
+    item_json = json.load(json_text)
     listing_details = item_json['props']['pageProps']['listingDetails']
 
     info = {
@@ -230,12 +230,22 @@ def get_details_from_raw_json(json_text: str) -> Dict:
 
 
 def get_numbers_of_offers_from_url(url: str) -> int:
-    page = requests.get(url, headers=config.HEADERS)
-    soup = BeautifulSoup(page.text, 'html.parser')
-    json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
-    obj = json.loads(json_text)
-    n_offers = obj['props']['pageProps']['numberOfResults']
+
+    user_agent = random.choice(config.USER_AGENTS)
+    try:
+        page = requests.get(url, headers={'User-Agent': user_agent})
+        soup = BeautifulSoup(page.text, 'html.parser')
+        json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
+        obj = json.loads(json_text)
+        n_offers = obj['props']['pageProps']['numberOfResults']
+
+    except requests.exceptions.RequestException as e:
+        log.debug(f'error {e}')
+        n_offers = None
+        return n_offers
+
     sleep(random.randint(0, 3))
+
     return int(n_offers)
 
 
@@ -266,7 +276,11 @@ def get_all_article_ids_forloop(
         for year in years:
             search_url = 'https://www.autoscout24.com/lst'
             search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year)
+            log.debug(f'SEARCH URL: {search_url}')
             n_results = get_numbers_of_offers_from_url(search_url)
+            if n_results is None:
+                sleep(300)
+                n_results = get_numbers_of_offers_from_url(search_url)
 
             if n_results == 0:
                 continue
@@ -282,6 +296,9 @@ def get_all_article_ids_forloop(
                     search_url = compose_search_url(search_url, maker=maker, fregfrom=year, fregto=year,
                                                     pricefrom=price_from, priceto=price_to)
                     n_results = get_numbers_of_offers_from_url(search_url)
+                    if n_results is None:
+                        sleep(300)
+                        n_results = get_numbers_of_offers_from_url(search_url)
 
                     if n_results == 0:
                         continue

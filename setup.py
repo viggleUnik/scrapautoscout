@@ -1,7 +1,7 @@
 from setuptools import setup
 from io import open
 
-VERSION = '1.0.6'
+VERSION = '1.0.9'
 DESCRIPTION = 'autoscout24 web scrapper'
 
 with open("README.md", "r") as fh:

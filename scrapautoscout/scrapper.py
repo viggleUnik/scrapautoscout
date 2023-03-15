@@ -8,6 +8,7 @@ import logging
 import base64
 import hashlib
 import random
+import boto3
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
@@ -38,9 +39,9 @@ def compose_search_url(
     filters = {
         'fregfrom': fregfrom,
         'fregto': fregto,
+        'adage': adage,
         'pricefrom': pricefrom,
         'priceto': priceto,
-        'adage': adage,
     }
 
     filters.update(kwargs)
@@ -180,15 +181,17 @@ def get_json_data_from_article(
         site_url: str = config.SITE_URL,
         headers: Dict=None,
         proxy: Dict=None,
-) -> str:
+):
 
     if headers is None:
         headers = config.HEADERS
 
     article_url = f'{site_url}/offers/{article_id}'
     json_text = None
+    status_code = None
     try:
         page = requests.get(article_url, headers=headers, proxies=proxy, timeout=5)
+        status_code = page.status_code
         page.raise_for_status()
         soup = BeautifulSoup(page.text, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
@@ -196,37 +199,7 @@ def get_json_data_from_article(
         log.debug(f'error {e}')
         pass
 
-    return json_text
-
-
-def get_details_from_raw_json(json_text: str) -> Dict:
-    # TODO: parse the entire json, then return only the content under: object > props > pageProps > listingDetails
-    #       return data that can be added to table (name: value)
-
-    item_json = json.load(json_text)
-    listing_details = item_json['props']['pageProps']['listingDetails']
-
-    info = {
-        'price': listing_details['prices']['public']['priceRaw'],
-        'make': listing_details['vehicle']['make'],
-        'model': listing_details['vehicle']['model'],
-        'model_version': listing_details['vehicle']['modelVersionInput'],
-        'mileage_in_km': listing_details['vehicle']['mileageInKmRaw'],
-        'registration_date': listing_details['vehicle']['firstRegistrationDateRaw'],
-        'body_type': listing_details['vehicle']['bodyType'],
-        'body_color': listing_details['vehicle']['bodyColor'],
-        'power_in_hp': listing_details['vehicle']['rawPowerInHp'],
-        'transmission': listing_details['vehicle']['transmissionType'],
-        'gears': listing_details['vehicle']['gears'],
-        'fuel_category': listing_details['vehicle']['fuelCategory']['formatted'],
-        'location': {
-            'city': listing_details['location']['city'],
-            'street': listing_details['location']['street'],
-        },
-        'sealer': listing_details['seller']['type']
-    }
-
-    return info
+    return json_text, status_code
 
 
 def get_numbers_of_offers_from_url(url: str) -> int:
@@ -308,6 +281,8 @@ def get_all_article_ids_forloop(
                         ids = get_all_ids_for_search_url(search_url, nr_of_pages, last_page_articles)
 
 
+
+
 def read_ids_json_files_from_cache():
     """Get car ids from cached json files"""
 
@@ -316,6 +291,7 @@ def read_ids_json_files_from_cache():
 
     dir_get_content = f'{config.DIR_CACHE}/get_content_id'
     os.makedirs(dir_get_content, exist_ok=True)
+
     # file browsing in 'cache/get_all_ids_for_search_url'
     for jfile in json_files:
         with open(path_to_json + jfile, 'r') as file:
@@ -334,7 +310,6 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
 
     # get valid proxies for scrapping
     proxies_valid_ips = get_valid_proxies_multithreading()
-
 
     for id in car_ids:
         id_file_name = f'{folder_path}/{id}.json'
@@ -361,7 +336,7 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
 
                 # choose random user agent from stored USER_AGENTS
                 user_agent = random.choice(config.USER_AGENTS)
-                json_text = get_json_data_from_article(
+                json_text, status_code = get_json_data_from_article(
                     headers={'User-Agent': user_agent},
                     article_id=id,
                     proxy=proxy)
@@ -378,7 +353,7 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
                         found = True
                         # create an empty json for further verification
                         with open(id_file_name, 'w') as f:
-                            json.dump({}, f, indent=2)
+                            json.dump('{}', f, indent=2)
                         request_try = 0
 
                     elif request_try < 3:
@@ -386,3 +361,76 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
                         proxies_valid_ips.remove(proxy_ip)
 
 
+def s3_read_ids_json_files_from_cache():
+    path_to_json = f'{config.DIR_CACHE}/get_all_ids_for_search_url'
+    json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
+
+    # Create a session using the default profile
+    session = boto3.Session(profile_name='default')
+
+    # file browsing in 'cache/get_all_ids_for_search_url'
+    for jfile in json_files:
+        with open(f'{path_to_json}/{jfile}', 'r') as file:
+            list_ids = json.load(file)
+
+        # creating s3 directory name for each given json file with ids
+        dir_name = jfile.replace('.json', '')
+        s3_create_folder_with_jsons_ids(car_ids=list_ids, folder_path=dir_name, bucket_name=config.BUCKET,
+                                        boto_session=session)
+
+
+def s3_create_folder_with_jsons_ids(car_ids: List[str], folder_path: str, bucket_name: str,
+                                    boto_session: boto3.session.Session):
+    # Get car information from site and create folder with jsons
+
+    # Use the session to create an S3 client
+    client = boto_session.client('s3')
+    folder_response = client.list_objects(Bucket=bucket_name, Prefix=folder_path)
+
+    if 'Contents' not in folder_response:
+        # get valid proxies for scrapping
+        proxies_valid_ips = get_valid_proxies_multithreading()
+
+        for car_id in car_ids:
+            found = False
+            request_try = 0
+
+            while not found:
+                # case proxies list is empty, we go further only if we have at least 3 valid proxies
+                if len(proxies_valid_ips) == 0:
+                    min_valid = False
+                    while not min_valid:
+                        proxies_valid_ips = get_valid_proxies_multithreading()
+                        if len(proxies_valid_ips) > 3:
+                            min_valid = True
+
+                # choose randon proxy from list
+                proxy_ip = random.choice(proxies_valid_ips)
+                proxy = {'http': proxy_ip, 'https': proxy_ip}
+
+                # choose random user agent from stored USER_AGENTS
+                user_agent = random.choice(config.USER_AGENTS)
+                json_text, status_code = get_json_data_from_article(
+                    headers={'User-Agent': user_agent},
+                    article_id=car_id,
+                    proxy=proxy)
+
+                # check if request was successful
+                if json_text is not None:
+                    # create file with car info
+                    key_file_name = f'{folder_path}/{car_id}.json'
+                    client.put_object(
+                        Bucket=bucket_name,
+                        Key=key_file_name,
+                        Body=json_text
+                    )
+                    found = True
+                elif status_code == 404:
+                    break
+                else:
+                    # try with another proxy, remove the current bad proxy
+                    if request_try < 3:
+                        request_try += 1
+                        proxies_valid_ips.remove(proxy_ip)
+                    else:
+                        break  # give up, exit while loop

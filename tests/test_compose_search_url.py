@@ -28,6 +28,13 @@ class TestComposeSearchUrl(unittest.TestCase):
         url = compose_search_url(maker='BMW', fregfrom=1992, fregto=2000, pricefrom=1000, priceto=10000)
         self.assertEqual('https://www.autoscout24.com/lst/bmw?fregfrom=1992&fregto=2000&pricefrom=1000&priceto=10000', url)
 
+    def test_maker_adage_provided(self):
+        url = compose_search_url(maker='BMW', adage=1)
+        self.assertEqual('https://www.autoscout24.com/lst/bmw?adage=1', url)
+
+    def test_maker_adage_price_provided(self):
+        url = compose_search_url(maker='BMW', adage=1, pricefrom=10000, priceto=20000)
+        self.assertEqual('https://www.autoscout24.com/lst/bmw?adage=1&pricefrom=10000&priceto=20000', url)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,5 @@
-from scrapautoscout.cli import run
+from scrapautoscout.cli import day_run
 
 if __name__ == "__main__":
-    run()
+    day_run()
 

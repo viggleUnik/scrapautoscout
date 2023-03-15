@@ -12,7 +12,7 @@ os.makedirs(DIR_CACHE, exist_ok=True)
 
 # Logging
 # *****************************************************************************
-LOGS_LEVEL = logging.DEBUG
+LOGS_LEVEL = logging.INFO
 FILE_LOGS = f'{DIR_ARTIFACTS}/logs.log'
 # set logging config:
 logging.basicConfig(
@@ -22,7 +22,9 @@ logging.basicConfig(
 )
 
 
-#
+# Bucket Name
+BUCKET = 'scrapautoscout-bucket'
+
 SITE_URL = 'https://www.autoscout24.com'
 
 HEADERS = {

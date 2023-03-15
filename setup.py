@@ -1,7 +1,7 @@
 from setuptools import setup
 from io import open
 
-VERSION = '1.0.9'
+VERSION = '1.1.4'
 DESCRIPTION = 'autoscout24 web scrapper'
 
 with open("README.md", "r") as fh:
@@ -26,7 +26,9 @@ setup(
     packages=['scrapautoscout'],
     install_requires=[
         'beautifulsoup4',
-        'requests'
+        'requests',
+        'boto3',
+        'awscli'
     ],
     python_requires=">=3.6",
     classifiers=[

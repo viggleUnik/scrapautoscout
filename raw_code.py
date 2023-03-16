@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import boto3
 import db.insert_data as insert
 from datetime import datetime
-# import os
+import os
 from db.extract_data import get_details_from_raw_json
 # path = 'cache/get_content_id'
 #
@@ -22,8 +22,8 @@ from db.extract_data import get_details_from_raw_json
 # with open('cache/get_content_id/a1/w5.json', 'w') as f:
 #     json.dump(listing_details, f, indent=2)
 
-aws_access_key_id = 'AKIAXUKXQQRJXKHQX5GX'
-aws_secret_access_key = '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'
+aws_access_key_id = os.environ['AWS_SECRET_KEY']
+aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
 region_name = 'eu-west-3'
 
 # Creating the low level functional client
@@ -171,5 +171,3 @@ insert.insert_into_car_table(car_info)
 # link to cars added 1 day ago
 # https://www.autoscout24.com/lst/bmw?adage=1
 
-t_date = datetime.today().strftime('%Y-%m-%d')
-print(t_date)

@@ -6,6 +6,7 @@ import scrapautoscout.config as config
 from scrapautoscout.scrapper import get_all_article_ids_forloop, s3_read_ids_json_files_from_cache
 from scrapautoscout.day_to_day_scrapper import s3_1day_get_all_article_ids_forloop
 
+
 def run():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir_out', default=config.DIR_CACHE,

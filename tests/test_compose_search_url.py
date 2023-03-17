@@ -36,5 +36,6 @@ class TestComposeSearchUrl(unittest.TestCase):
         url = compose_search_url(maker='BMW', adage=1, pricefrom=10000, priceto=20000)
         self.assertEqual('https://www.autoscout24.com/lst/bmw?adage=1&pricefrom=10000&priceto=20000', url)
 
+
 if __name__ == '__main__':
     unittest.main()

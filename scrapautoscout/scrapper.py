@@ -179,8 +179,8 @@ def get_all_ids_for_search_url(search_url: str, max_pages: int, last_page_articl
 def get_json_data_from_article(
         article_id: str,
         site_url: str = config.SITE_URL,
-        headers: Dict=None,
-        proxy: Dict=None,
+        headers: Dict = None,
+        proxy: Dict = None,
 ):
 
     if headers is None:
@@ -203,7 +203,6 @@ def get_json_data_from_article(
 
 
 def get_numbers_of_offers_from_url(url: str) -> int:
-
     user_agent = random.choice(config.USER_AGENTS)
     try:
         page = requests.get(url, headers={'User-Agent': user_agent})
@@ -211,14 +210,11 @@ def get_numbers_of_offers_from_url(url: str) -> int:
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
         obj = json.loads(json_text)
         n_offers = obj['props']['pageProps']['numberOfResults']
-
     except requests.exceptions.RequestException as e:
         log.debug(f'error {e}')
-        n_offers = None
-        return n_offers
+        return None
 
     sleep(random.randint(0, 3))
-
     return int(n_offers)
 
 
@@ -236,12 +232,12 @@ def calculate_nr_of_pages(nr_results: int) -> Tuple[int, int]:
 
 
 def get_all_article_ids_forloop(
-        max_results: int = config.MAX_RESULTS,
         makers: List[str] = config.MAKERS,
         years: List[int] = config.YEARS,
         price_ranges: List[List[int]] = config.PRICE_RANGES,
+        max_results: int = config.MAX_RESULTS,
 ):
-    """Get All car ids cached in folder 'get_all_ids_for_search_url' """
+    """Get all car ids to cache folder 'get_all_ids_for_search_url' """
 
     # find results for makers
     for maker in makers:

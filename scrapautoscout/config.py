@@ -21,6 +21,11 @@ logging.basicConfig(
     level=LOGS_LEVEL,
 )
 
+# suppress logs by `urllib3.connectionpool`
+log_urllib3 = logging.getLogger('urllib3.connectionpool')
+log_urllib3.addHandler(logging.NullHandler())
+log_urllib3.propagate = False
+log_urllib3.setLevel(logging.INFO)
 
 
 AWS_S3_BUCKET = 'scrapautoscout-bucket'

@@ -36,7 +36,7 @@ def get_details_from_raw_json(json_text: str) -> Dict:
     return info
 
 
-def s3_get_data_from_bucket_jsons(bucket_name: str = config.BUCKET):
+def s3_get_data_from_bucket_jsons(bucket_name: str = config.AWS_S3_BUCKET):
     # Create a session using the default profile
     session = boto3.Session(profile_name='default')
     # Use the session to create an S3 client

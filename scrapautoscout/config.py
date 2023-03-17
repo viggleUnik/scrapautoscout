@@ -5,10 +5,13 @@ from pathlib import Path
 
 # Dirs
 # *****************************************************************************
+# local
 DIR_ARTIFACTS = os.path.join(os.getcwd(), 'artifacts')
 os.makedirs(DIR_ARTIFACTS, exist_ok=True)
 DIR_CACHE = os.path.join(os.getcwd(), 'cache')
 os.makedirs(DIR_CACHE, exist_ok=True)
+# aws s3
+AWS_S3_BUCKET = 'scrapautoscout-bucket'
 
 # Logging
 # *****************************************************************************
@@ -27,11 +30,57 @@ log_urllib3.addHandler(logging.NullHandler())
 log_urllib3.propagate = False
 log_urllib3.setLevel(logging.INFO)
 
-
-AWS_S3_BUCKET = 'scrapautoscout-bucket'
-
+# Search
+# *****************************************************************************
 SITE_URL = 'https://www.autoscout24.com'
+MAX_PAGES = 20
+MAX_RESULTS = 400
+MAX_RESULTS_PER_PAGE = 20
 
+ADAGE = 365  # maximum age of ads to extract
+# MAKERS = ['audi', 'bmw', 'ford', 'mercedes-benz', 'opel', 'volkswagen', 'renault']
+MAKERS = [
+    'Audi', 'BMW', 'Ford', 'Mercedes-Benz', 'Opel', 'Renault', 'Volkswagen',
+    '9ff', 'Abarth', 'AC', 'ACM', 'Acura', 'Aixam', 'Alfa Romeo', 'Alpina', 'Alpine', 'Amphicar', 'Ariel Motor',
+    'Artega', 'Aspid', 'Aston Martin', 'Austin', 'Autobianchi', 'Auverland', 'Baic', 'Bedford', 'Bellier',
+    'Bentley', 'Bollore', 'Borgward', 'Brilliance', 'Bugatti', 'Buick', 'BYD', 'Cadillac', 'Caravans-Wohnm',
+    'Casalini', 'Caterham', 'Changhe', 'Chatenet', 'Chery', 'Chevrolet', 'Chrysler', 'Citroen', 'CityEL', 'CMC',
+    'Corvette', 'Courb', 'Cupra', 'Dacia', 'Daewoo', 'DAF', 'Daihatsu', 'Daimler', 'Dangel', 'De la Chapelle',
+    'De Tomaso', 'Derways', 'DFSK', 'Dodge', 'Donkervoort', 'DR Motor', 'DS Automobiles', 'Dutton', 'e.GO',
+    'Estrima', 'Ferrari', 'Fiat', 'FISKER', 'Gac Gonow', 'Galloper', 'GAZ', 'Geely', 'GEM', 'GEMBALLA',
+    'Genesis', 'Gillet', 'Giotti Victoria', 'GMC', 'Great Wall', 'Grecav', 'Haima', 'Hamann', 'Honda', 'HUMMER',
+    'Hurtan', 'Hyundai', 'Infiniti', 'Innocenti', 'Iso Rivolta', 'Isuzu', 'Iveco', 'IZH', 'Jaguar', 'Jeep',
+    'Karabag', 'Kia', 'Koenigsegg', 'KTM', 'Lada', 'Lamborghini', 'Lancia', 'Land Rover', 'LDV', 'Lexus',
+    'Lifan', 'Ligier', 'Lincoln', 'Lotus', 'Mahindra', 'MAN', 'Mansory', 'Martin Motors', 'Maserati', 'Maxus',
+    'Maybach', 'Mazda', 'McLaren', 'Melex', 'MG', 'Microcar', 'Minauto', 'MINI', 'Mitsubishi', 'Mitsuoka',
+    'Morgan', 'Moskvich', 'MP Lafer', 'MPM Motors', 'Nio', 'Nissan', 'Oldsmobile', 'Oldtimer', 'Pagani',
+    'Panther Westwinds', 'Peugeot', 'PGO', 'Piaggio', 'Plymouth', 'Pontiac', 'Porsche', 'Proton', 'Puch',
+    'Qoros', 'Qvale', 'RAM', 'Reliant', 'Rolls-Royce', 'Rover', 'Ruf', 'Saab', 'Santana', 'Savel', 'SDG',
+    'SEAT', 'Shuanghuan', 'Skoda', 'smart', 'SpeedArt', 'Spyker', 'SsangYong', 'StreetScooter', 'Subaru',
+    'Suzuki', 'TagAZ', 'Talbot', 'Tasso', 'Tata', 'Tazzari EV', 'TECHART', 'Tesla', 'Town Life', 'Toyota',
+    'Trabant', 'Triumph', 'Trucks-Lkw', 'TVR', 'UAZ', 'VAZ', 'VEM', 'Volvo', 'Vortex', 'Wallys', 'Wartburg',
+    'Westfield', 'Wiesmann', 'Zastava', 'ZAZ', 'Zhidou', 'Zotye', 'Others'
+]
+YEARS = list(range(1992, 2023))
+PRICE_RANGES = [
+    [2_000, 5_000],
+    [5_001, 10_000],
+    [10_001, 13_000],
+    [13_001, 16_000],
+    [16_001, 20_000],
+    [20_001, 25_000],
+    [25_001, 30_000],
+    [30_001, 35_000],
+    [35_001, 40_000],
+    [40_001, 50_000],
+    [50_001, 60_000],
+    [60_001, 80_000],
+    [80_001, 100_000],
+    [100_001, 9_999_999],
+]
+
+# Enhance requests (to avoid being banned)
+# *****************************************************************************
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
 }
@@ -56,26 +105,4 @@ USER_AGENTS = [
     'Mozilla/5.0 (Linux; Android 10; V1829T; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/87.0.4280.141 Mobile Safari/537.36 VivoBrowser/13.5.2.0',
     'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/3.2 Firefox/45.9 PaleMoon/27.4.1',
     'Mozilla/5.0 (Linux; Android 10; HarmonyOS; BRQ-AN00; HMSCore 6.9.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.88 HuaweiBrowser/13.0.3.301 Mobile Safari/537.36'
-]
-
-MAX_PAGES = 20
-MAX_RESULTS = 400
-MAX_RESULTS_PER_PAGE = 20
-MAKERS = ['audi', 'bmw', 'ford', 'mercedes-benz', 'opel', 'volkswagen', 'renault']
-YEARS = list(range(1992, 2023))
-PRICE_RANGES = [
-    [2_000, 5_000],
-    [5_001, 10_000],
-    [10_001, 13_000],
-    [13_001, 16_000],
-    [16_001, 20_000],
-    [20_001, 25_000],
-    [25_001, 30_000],
-    [30_001, 35_000],
-    [35_001, 40_000],
-    [40_001, 50_000],
-    [50_001, 60_000],
-    [60_001, 80_000],
-    [80_001, 100_000],
-    [100_001, 9_999_999],
 ]

@@ -1,7 +1,7 @@
 import os.path
-import requests  # for making standard html requests
-from bs4 import BeautifulSoup  # magical tool for parsing html data
-import json  # for parsing data
+import requests
+from bs4 import BeautifulSoup
+import json
 from time import sleep
 from typing import Dict, List, Tuple
 import logging
@@ -28,19 +28,27 @@ def compose_search_url(
         **kwargs,
 ) -> str:
 
+    """
+    Compose url with given parameters for filtering
+    examples returned:
+    - https://www.autoscout24.com/lst/bmw?fregfrom=2020&fregto=2020&pricefrom=20000&priceto=23000&page=2
+    - https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
+    """
+
     if not search_url.endswith('/lst'):
         search_url = f'{search_url}/lst'
 
     if maker is not None:
-        search_url = f'{search_url}/{maker.lower()}?'
+        maker = maker.lower().replace(' ', '-')
+        search_url = f'{search_url}/{maker}?'
 
     if not search_url.endswith('?'):
         search_url = f'{search_url}?'
 
     filters = {
+        'adage': adage,
         'fregfrom': fregfrom,
         'fregto': fregto,
-        'adage': adage,
         'pricefrom': pricefrom,
         'priceto': priceto,
     }
@@ -52,11 +60,6 @@ def compose_search_url(
     filters_str_pairs = [f'{k}={v}' for k, v in filters.items()]
     filters_compounded = '&'.join(filters_str_pairs)
     search_url = f'{search_url}{filters_compounded}'
-
-
-    # examples returned
-    # https://www.autoscout24.com/lst/bmw?fregfrom=2020&fregto=2020&pricefrom=20000&priceto=23000&page=2
-    # https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
 
     return search_url
 
@@ -231,13 +234,30 @@ def calculate_nr_of_pages(
     return min(math.ceil(float(nr_results) / res_per_page), max_pages)
 
 
+def get_all_article_ids(
+        makers: List[str] = config.MAKERS,
+        years: List[int] = config.YEARS,
+        price_ranges: List[List[int]] = config.PRICE_RANGES,
+        adage: int = config.ADAGE,
+        max_results: int = config.MAX_RESULTS,
+):
+    """
+    Get all car ids and save them to cache folder
+    """
+    all_ids = []
+
+
+
+
 def get_all_article_ids_forloop(
         makers: List[str] = config.MAKERS,
         years: List[int] = config.YEARS,
         price_ranges: List[List[int]] = config.PRICE_RANGES,
         max_results: int = config.MAX_RESULTS,
 ):
-    """Get all car ids to cache folder 'get_all_ids_for_search_url' """
+    """
+    Get all car ids and save them to cache folder
+    """
 
     all_ids = []
 

@@ -80,26 +80,26 @@ else:
     print('exists')
 
 #####################################
-'''going through all objects in a bucket '''
-count = 0
-mybucket = resource.Bucket(bucket_name)
-for file in mybucket.objects.all():
-
-    if file.size > 2000:
-        json_data = file.get()['Body'].read().decode('utf-8')
-        try:
-            print('first')
-            car_info = get_details_from_raw_json(json_data)
-        except TypeError:
-            print('second')
-            stop = True
-            json_obj = json.loads(json_data)
-        # json_loads = json.loads(json_obj)
-        # print(json_loads['props']['pageProps']['listingDetails'])
-            car_info = get_details_from_raw_json(json_obj)
-        break
-print(car_info)
-insert.insert_into_car_table(car_info)
+# '''going through all objects in a bucket '''
+# count = 0
+# mybucket = resource.Bucket(bucket_name)
+# for file in mybucket.objects.all():
+#
+#     if file.size > 2000:
+#         json_data = file.get()['Body'].read().decode('utf-8')
+#         try:
+#             print('first')
+#             car_info = get_details_from_raw_json(json_data)
+#         except TypeError:
+#             print('second')
+#             stop = True
+#             json_obj = json.loads(json_data)
+#         # json_loads = json.loads(json_obj)
+#         # print(json_loads['props']['pageProps']['listingDetails'])
+#             car_info = get_details_from_raw_json(json_obj)
+#         break
+# print(car_info)
+# insert.insert_into_car_table(car_info)
 
         # listing_details = json_obj['props']['pageProps']['listingDetails']
         # print(listing_details)
@@ -171,3 +171,5 @@ insert.insert_into_car_table(car_info)
 # link to cars added 1 day ago
 # https://www.autoscout24.com/lst/bmw?adage=1
 
+
+print(dirname)

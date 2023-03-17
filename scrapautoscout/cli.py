@@ -4,7 +4,7 @@ import os
 import scrapautoscout.config as config
 # from scrapautoscout import config
 from scrapautoscout.scrapper import get_all_article_ids_forloop, s3_read_ids_json_files_from_cache
-from scrapautoscout.day_to_day_scrapper import s3_1day_get_all_article_ids_forloop
+from scrapautoscout.daily_scrapper import daily_get_all_article_ids_forloop
 
 
 def run():
@@ -26,8 +26,8 @@ def run():
 
 
 def day_run():
-    s3_1day_get_all_article_ids_forloop()
+    daily_get_all_article_ids_forloop()
 
 
 if __name__ == "__main__":
-    day_run()
+    run()

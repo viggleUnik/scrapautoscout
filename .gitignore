@@ -10,3 +10,5 @@ test/__pycache__/
 /dist
 /.pytest_cache
 /scrapautoscout.egg-info
+/build
+.DS_Store

@@ -108,7 +108,7 @@ def get_content_from_all_pages(
                 proxies_valid_ips.remove(proxy_ip)
                 log.error(f'error {e}')
             pass
-
+    log.info(f'Content For: {search_url} Extracted!')
     return pages
 
 
@@ -371,7 +371,7 @@ def s3_read_ids_json_files_from_cache():
 
         # creating s3 directory name for each given json file with ids
         dir_name = jfile.replace('.json', '')
-        s3_create_folder_with_jsons_ids(car_ids=list_ids, folder_path=dir_name, bucket_name=config.AWS_S3_BUCKET,
+        s3_create_folder_with_jsons_ids(car_ids=list_ids, folder_path=dir_name, bucket_name=config.BUCKET,
                                         boto_session=session)
 
 

@@ -12,7 +12,7 @@ os.makedirs(DIR_CACHE, exist_ok=True)
 
 # Logging
 # *****************************************************************************
-LOGS_LEVEL = logging.INFO
+LOGS_LEVEL = logging.DEBUG
 FILE_LOGS = f'{DIR_ARTIFACTS}/logs.log'
 # set logging config:
 logging.basicConfig(

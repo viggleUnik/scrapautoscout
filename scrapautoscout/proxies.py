@@ -5,8 +5,11 @@ import concurrent.futures
 from typing import List
 import random
 from time import sleep
+import logging
 
 from scrapautoscout import config
+
+log = logging.getLogger(os.path.basename(__file__))
 
 
 def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/'):
@@ -43,24 +46,27 @@ def extract_response_for_given_ip(proxy, url_for_checks='https://httpbin.org/ip'
 
 
 def get_valid_proxies_multithreading() -> List[str]:
-    # scrape proxy list from site
-    raw_proxies = get_raw_proxies_from_url()
+    """ scrape proxy list from site https://free-proxy-list.net/"""
 
-    found = False
-    while not found:
+    raw_proxies = []
+    n_trials = 0
+
+    while not len(raw_proxies) > 0:
+        n_trials += 1
+        log.debug(f"attempt={n_trials}: get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/')")
+        raw_proxies = get_raw_proxies_from_url()
         if len(raw_proxies) == 0:
-            raw_proxies = get_raw_proxies_from_url()
-            sleep(10)
-        else:
-            found = True
+            sleep(10)  # sleep after each failed trial
+
+    log.debug(f'{len(raw_proxies)} raw proxies extracted, now validating...')
 
     valid_proxies = []
-
-    # tests proxies
     with concurrent.futures.ThreadPoolExecutor() as executor:
         for res in executor.map(extract_response_for_given_ip, raw_proxies):
             if res is not None:
                 valid_proxies.append(res)
+
+    log.debug(f'{len(valid_proxies)} proxies were validated')
 
     return valid_proxies
 

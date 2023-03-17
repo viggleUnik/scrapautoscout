@@ -12,7 +12,7 @@ import boto3
 from datetime import datetime
 
 from scrapautoscout.scrapper import compose_search_url, get_content_from_all_pages, get_article_ids, \
-    get_hash_from_string, get_numbers_of_offers_from_url, calculate_nr_of_pages
+    get_hash_from_string, get_numbers_of_articles_from_url, calculate_nr_of_pages
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 
@@ -38,7 +38,7 @@ def s3_1day_get_all_ids_for_search_url(
     # TODO maybe is needed to check if file exist in s3 bucket
 
     if n_search_results is None:
-        n_search_results = get_numbers_of_offers_from_url(search_url)
+        n_search_results = get_numbers_of_articles_from_url(search_url)
 
     nr_of_pages = calculate_nr_of_pages(nr_results=n_search_results)
 
@@ -65,7 +65,7 @@ def s3_1day_get_all_article_ids_forloop(
         # find results for price ranges
         for price_from, price_to in price_ranges:
             search_url = compose_search_url(smaker=maker, adage=1, pricefrom=price_from, priceto=price_to)
-            n_results = get_numbers_of_offers_from_url(search_url)
+            n_results = get_numbers_of_articles_from_url(search_url)
 
             if n_results == -1:
                 # case when failed

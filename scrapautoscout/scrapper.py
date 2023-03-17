@@ -144,19 +144,22 @@ def get_all_ids_for_search_url(
         cache_folder: str = 'get_all_ids_for_search_url'
     ):
 
+    log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
+
     # cache dir and json file with ids
     dir_cache = f'{config.DIR_CACHE}/{cache_folder}'
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
 
-    # load from cache if available
+    # load from local cache if available
     if os.path.exists(path_file):
         with open(path_file) as f:
             ids = json.load(f)
+        log.debug(f'loaded {len(ids)} from local cache')
         return ids
 
     if n_search_results is None:
-        n_search_results = get_numbers_of_offers_from_url(search_url)
+        n_search_results = get_numbers_of_articles_from_url(search_url)
 
     nr_of_pages = calculate_nr_of_pages(nr_results=n_search_results)
 
@@ -199,7 +202,7 @@ def get_json_data_from_article(
     return json_text, status_code
 
 
-def get_numbers_of_offers_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
+def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
     n_trials = 0
     while n_trials < max_trials:
         try:
@@ -243,15 +246,12 @@ def get_all_article_ids_forloop(
         # find results for years of registration
         for year in years:
             search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year)
-            log.debug(f'SEARCH URL: {search_url}')
-            n_results = get_numbers_of_offers_from_url(search_url)
+            n_results = get_numbers_of_articles_from_url(search_url)
 
             if n_results == -1:
-                # case when error
-                continue
+                continue  # case when error
 
             elif n_results == 0:
-                # case when zero results found
                 continue
 
             elif n_results < max_results:
@@ -260,14 +260,13 @@ def get_all_article_ids_forloop(
                 all_ids.extend(ids)
 
             elif n_results > max_results:
-                # case when more than 400 results found, will narrow the search by price ranges
+                # case when more than 400 results found, will narrow the search with price ranges
                 for price_from, price_to in price_ranges:
                     search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year,
                                                     pricefrom=price_from, priceto=price_to)
-                    n_results = get_numbers_of_offers_from_url(search_url)
+                    n_results = get_numbers_of_articles_from_url(search_url)
 
                     if n_results == -1:
-                        # case when error
                         continue
 
                     elif n_results == 0:
@@ -277,7 +276,7 @@ def get_all_article_ids_forloop(
                         ids = get_all_ids_for_search_url(search_url, n_results)
                         all_ids.extend(ids)
 
-        return all_ids
+    return all_ids
 
 
 def read_ids_json_files_from_cache():

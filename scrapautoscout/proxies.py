@@ -12,7 +12,7 @@ from scrapautoscout import config
 log = logging.getLogger(os.path.basename(__file__))
 
 
-def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/'):
+def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/') -> List[str]:
     raw_proxies = []
     try:
         response = requests.get(proxies_url)
@@ -33,10 +33,12 @@ def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/'):
 
 def extract_response_for_given_ip(proxy, url_for_checks='https://httpbin.org/ip', timeout=2):
     try:
-        response = requests.get(url=url_for_checks,
-                                headers={'User-Agent': random.choice(config.USER_AGENTS)},
-                                proxies={'http': proxy, 'https': proxy},
-                                timeout=timeout)
+        response = requests.get(
+            url=url_for_checks,
+            headers={'User-Agent': random.choice(config.USER_AGENTS)},
+            proxies={'http': proxy, 'https': proxy},
+            timeout=timeout
+        )
         if response.status_code == 200:
             return proxy
         else:

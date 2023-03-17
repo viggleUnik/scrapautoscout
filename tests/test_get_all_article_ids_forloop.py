@@ -9,6 +9,6 @@ class TestGetAllArticleIDs(unittest.TestCase):
             makers=['audi', 'bmw'],
             years=[1999, 2022],
             price_ranges=[[2000, 5000], [20_000, 50_000]],
-            max_results=400,
+            max_results=1000,
         )
         self.assertTrue(len(ids) > 0)

@@ -19,12 +19,12 @@ from scrapautoscout.proxies import get_valid_proxies_multithreading
 log = logging.getLogger(os.path.basename(__file__))
 
 
-def s3_1day_get_all_ids_for_search_url(search_url: str,
-                                  max_pages: int,
-                                  last_page_articles: int,
-                                  boto_session: boto3.session.Session,
-                                  bucket_name: str = config.BUCKET
-                                  ):
+def s3_1day_get_all_ids_for_search_url(
+        search_url: str,
+        boto_session: boto3.session.Session,
+        bucket_name: str = config.AWS_S3_BUCKET,
+        n_search_results: int = None,
+    ):
     # Create json file with ids
 
     # Use the session to create an S3 client
@@ -37,9 +37,14 @@ def s3_1day_get_all_ids_for_search_url(search_url: str,
 
     # TODO maybe is needed to check if file exist in s3 bucket
 
+    if n_search_results is None:
+        n_search_results = get_numbers_of_offers_from_url(search_url)
+
+    nr_of_pages = calculate_nr_of_pages(nr_results=n_search_results)
+
     # Get ids to write in a json file
-    list_bs = get_content_from_all_pages(search_url, max_pages=max_pages)
-    ids = get_article_ids(list_bs, last_page_articles)
+    list_bs = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
+    ids = get_article_ids(list_bs, n_search_results)
 
     # Write file with ids to S3 bucket
     client.put_object(
@@ -59,20 +64,18 @@ def s3_1day_get_all_article_ids_forloop(
     for maker in makers:
         # find results for price ranges
         for price_from, price_to in price_ranges:
-
-            search_url = 'https://www.autoscout24.com/lst'
-            search_url = compose_search_url(search_url, maker=maker, adage=1, pricefrom=price_from, priceto=price_to)
-            log.info(f'SEARCH URL: {search_url}')
-
+            search_url = compose_search_url(smaker=maker, adage=1, pricefrom=price_from, priceto=price_to)
             n_results = get_numbers_of_offers_from_url(search_url)
-            if n_results is None:
-                sleep(300)
-                n_results = get_numbers_of_offers_from_url(search_url)
 
-            # Case when no car listed on specified url
-            if n_results == 0:
+            if n_results == -1:
+                # case when failed
+                continue
+            elif n_results == 0:
+                # Case when no car listed on specified url
                 continue
             elif n_results > 0:
-                nr_of_pages, last_page_articles = calculate_nr_of_pages(nr_results=n_results)  # unpacking
-                s3_1day_get_all_ids_for_search_url(search_url=search_url, max_pages=nr_of_pages,
-                                                   last_page_articles=last_page_articles, boto_session=session)
+                s3_1day_get_all_ids_for_search_url(
+                    search_url=search_url,
+                    boto_session=session,
+                    n_search_results=n_results
+                )

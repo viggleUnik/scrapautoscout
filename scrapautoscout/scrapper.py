@@ -97,7 +97,7 @@ def get_content_from_all_pages(
             try:
                 page = requests.get(url=url_page, headers=headers, proxies=proxy, timeout=5)
                 if page.status_code == 200:
-                    soup = BeautifulSoup(page.text, 'html.parser')
+                    soup = BeautifulSoup(page.content, 'html.parser')
                     pages.append(soup)
                     found = True
                 else:

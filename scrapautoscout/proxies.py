@@ -16,7 +16,7 @@ def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/') -> List
     raw_proxies = []
     try:
         response = requests.get(proxies_url)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.content, 'html.parser')
         table = soup.find('table', class_='table table-striped table-bordered')
         if response.status_code == 200:
             for row in table.tbody.find_all('tr'):

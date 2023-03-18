@@ -206,6 +206,7 @@ def get_json_data_from_article(
 
 
 def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
+    sleep(random.randint(1, 3))
     n_trials = 0
     while n_trials < max_trials:
         try:
@@ -236,17 +237,120 @@ def calculate_nr_of_pages(
 
 def get_all_article_ids(
         makers: List[str] = config.MAKERS,
-        years: List[int] = config.YEARS,
-        price_ranges: List[List[int]] = config.PRICE_RANGES,
+        year_range: Tuple[int, int] = config.YEAR_RANGE,
+        price_range: Tuple[int, int] = config.PRICE_RANGE,
         adage: int = config.ADAGE,
         max_results: int = config.MAX_RESULTS,
+        max_retrievals: int = None,
+        price_step = 500,
 ):
     """
     Get all car ids and save them to cache folder
+    :param max_results: when to stop narrowing the filter, if number of search results is less or equal,
+        no further narrowing is performed, default: 400 results (maximum retrievable per search)
+    :param max_retrievals: maximum allowed number of IDs retrievals
     """
+    price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
+
     all_ids = []
+    retrieved_counts = {}
+    n_retrievals = 0
 
+    # initiate stack
+    # - initiate with empty filter, no parameters specified
+    stack = [{}]
 
+    # - initiate with 'adage', if 'adage' was specified
+    if adage is not None:
+        pars = stack.pop()
+        pars_with_adage = {**pars, **{'adage': adage}}
+        stack.append(pars_with_adage)
+
+    # - initiate with makers, if makers were specified (usually, the makers are specified)
+    if makers is not None and len(makers) > 0:
+        pars = stack.pop()
+        for maker in reversed(makers):
+            pars_with_maker = {**pars, **{'maker': maker}}
+            stack.append(pars_with_maker)
+
+    # perform depth first search, narrow filter if too many results found (>max_results)
+    while len(stack) > 0:
+        if max_retrievals is not None and n_retrievals > max_retrievals:
+            break
+
+        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
+        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
+
+        pars = stack.pop()
+        pars_as_key = json.dumps(pars)
+
+        # check if this set of parameters was retrieved before
+        n_results = retrieved_counts.get(pars_as_key, None)
+        if n_results is not None:
+            continue  # if it was already retrieved, then skip to not repeat the same work
+
+        # check how many results are found when searching with this set for parameters
+        search_url = compose_search_url(**pars)
+        n_results = get_numbers_of_articles_from_url(search_url)
+        retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
+
+        if n_results <= 0:
+            # if -1 (error) or 0 (zero results found), then nothing to do, go to next
+            continue
+        elif n_results <= max_results:
+            # if less than maximum results, retrieve all articles IDs, as we don't want to narrow the filter further
+            ids = get_all_ids_for_search_url(search_url, n_results)
+            all_ids.extend(ids)
+            n_retrievals += 1
+        else:
+            # if more than max results, there are too many results, we want to narrow the filter and break down
+            # the set of results with additional parameters if possible
+
+            # try to be more specific about years
+            fregfrom, fregto = pars.get('fregfrom'), pars.get('fregto')
+            pars_has_years = fregfrom is not None and fregto is not None
+            if not pars_has_years:
+                # if params does not have years, add years and append new params to stack
+                fregfrom, fregto = year_range
+                new_pars = {**pars, **{'fregfrom': fregfrom, 'fregto': fregto}}
+                stack.append(new_pars)
+                continue
+            elif pars_has_years and fregfrom < fregto:
+                # if params has years specified and if there is a range between fregfrom and fregto,
+                # then divide it at mid-point into 2 new ranges and add new params to stack
+                mid = (fregfrom + fregto) // 2
+                new_pars_left = {**pars, **{'fregfrom': fregfrom, 'fregto': mid}}
+                new_pars_right = {**pars, **{'fregfrom': mid + 1, 'fregto': fregto}}
+                stack.append(new_pars_left)
+                stack.append(new_pars_right)
+                continue
+
+            # try to be more specific about price
+            pricefrom, priceto = pars.get('pricefrom'), pars.get('priceto')
+            pars_has_prices = pricefrom is not None and priceto is not None
+            if not pars_has_prices:
+                # if params does not have prices, add prices and append new params to stack
+                pricefrom, priceto = price_range
+                new_pars = {**pars, **{'pricefrom': pricefrom, 'priceto': priceto}}
+                stack.append(new_pars)
+                continue
+            elif pars_has_prices and (priceto - pricefrom) > price_step:
+                # if params has prices and if there is a wide enough range between pricefrom and priceto,
+                # then divide it at midpoint into 2 new ranges and add new params to stack
+                mid = (pricefrom + priceto) // 2
+                mid = math.floor(mid / price_step) * price_step  # round down to price_step
+                new_pars_left = {**pars, **{'pricefrom': min(pricefrom, mid), 'priceto': mid}}
+                new_pars_right = {**pars, **{'pricefrom': mid + 1, 'priceto': priceto}}
+                stack.append(new_pars_left)
+                stack.append(new_pars_right)
+                continue
+
+            # if the set of parameters could not be narrowed more, then retrieve just the first 400 IDs for this search
+            ids = get_all_ids_for_search_url(search_url, n_results)
+            all_ids.extend(ids)
+            n_retrievals += 1
+
+    return all_ids
 
 
 def get_all_article_ids_forloop(

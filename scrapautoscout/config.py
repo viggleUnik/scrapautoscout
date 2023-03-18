@@ -1,7 +1,6 @@
 # configs
 import logging
 import os
-from pathlib import Path
 
 # Dirs
 # *****************************************************************************
@@ -78,6 +77,8 @@ PRICE_RANGES = [
     [80_001, 100_000],
     [100_001, 9_999_999],
 ]
+YEAR_RANGE = (1980, 2023)
+PRICE_RANGE = (500, 1_000_000)
 
 # Enhance requests (to avoid being banned)
 # *****************************************************************************

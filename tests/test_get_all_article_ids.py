@@ -13,6 +13,8 @@ class test_get_all_article_ids(unittest.TestCase):
     # makers=['dodge']:
     # execution time: 1018.062s (~19min 28sec)
     # retrieved: 2905 IDs
+    # called get_all_ids_for_search_url() 13 times
+    # 85% of time spent on
     # retrieved_counts:
     # {
     #   "{\"adage\": 365, \"maker\": \"dodge\"}": 4225,

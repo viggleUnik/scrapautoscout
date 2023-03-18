@@ -188,7 +188,7 @@ def get_json_data_from_article(
 ):
 
     if headers is None:
-        headers = config.HEADERS
+        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
 
     article_url = f'{site_url}/offers/{article_id}'
     json_text = None

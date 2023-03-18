@@ -82,9 +82,6 @@ PRICE_RANGE = (500, 1_000_000)
 
 # Enhance requests (to avoid being banned)
 # *****************************************************************************
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
-}
 USER_AGENTS = [
     'Mozilla/5.0 (Linux; Android 7.0; d-01J Build/HUAWEIBTV-L0J; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Safari/537.36',
     'Mozilla/5.0 (Linux; U; Android 11; pt-pt; moto g(10) Build/RRB31.Q1-3-69) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Mobile Safari/537.36 PHX/11.9',

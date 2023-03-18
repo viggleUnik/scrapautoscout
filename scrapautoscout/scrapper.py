@@ -111,7 +111,7 @@ def get_content_from_all_pages(
     return pages
 
 
-def get_article_ids(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
+def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
     """
     Get all articles IDs from a list of pages
     :param pages: list of BeautifulSoup objects
@@ -162,8 +162,8 @@ def get_all_ids_for_search_url(
 
     nr_of_pages = calculate_nr_of_pages(nr_results=n_search_results)
 
-    list_bs = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
-    ids = get_article_ids(list_bs, n_search_results)
+    list_bs_pages = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
+    ids = get_article_ids_from_pages(list_bs_pages, n_search_results)
 
     # save to cache
     with open(path_file, 'w') as f:

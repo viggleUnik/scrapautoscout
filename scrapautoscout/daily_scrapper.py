@@ -11,7 +11,7 @@ import random
 import boto3
 from datetime import datetime
 
-from scrapautoscout.scrapper import compose_search_url, get_content_from_all_pages, get_article_ids, \
+from scrapautoscout.scrapper import compose_search_url, get_content_from_all_pages, get_article_ids_from_pages, \
     get_hash_from_string, get_numbers_of_offers_from_url, calculate_nr_of_pages
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
@@ -39,7 +39,7 @@ def daily_get_all_ids_for_search_url(search_url: str,
 
     # Get car_ids to write in a json file
     list_bs = get_content_from_all_pages(search_url, max_pages=max_pages)
-    car_ids = get_article_ids(list_bs, last_page_articles)
+    car_ids = get_article_ids_from_pages(list_bs, last_page_articles)
     json_data = json.dumps(car_ids, indent=2)
 
     # Write file with car_ids to S3 bucket

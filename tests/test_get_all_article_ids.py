@@ -11,10 +11,10 @@ class test_get_all_article_ids(unittest.TestCase):
         self.assertTrue(len(ids) > 0)
 
     # makers=['dodge']:
-    # execution time: 1018.062s (~19min 28sec)
-    # retrieved: 2905 IDs
-    # called get_all_ids_for_search_url() 13 times
-    # 85% of time spent on
+    # execution time: 15min 50sec
+    # retrieved: 2909 IDs
+    # called get_all_ids_for_search_url() 13 times (~60sec/call)
+    # called get_raw_proxies_from_url() 13 times (~30sec/call)
     # retrieved_counts:
     # {
     #   "{\"adage\": 365, \"maker\": \"dodge\"}": 4225,

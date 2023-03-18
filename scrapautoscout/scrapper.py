@@ -104,7 +104,7 @@ def get_content_from_all_pages(
                     proxies_valid_ips.remove(proxy_ip)
             except requests.exceptions.RequestException as e:
                 proxies_valid_ips.remove(proxy_ip)
-                log.debug(f'Failed to get the content for url: {url_page} with error: {trunc_error_msg(e)}')
+                log.debug(f'Failed to get the content for url: {url_page} via proxy {proxy_ip} with error: {trunc_error_msg(e)}')
 
     log.info(f'All pages for url: {search_url} were extracted successfully.')
 
@@ -172,7 +172,7 @@ def get_all_ids_for_search_url(
     return ids
 
 
-def trunc_error_msg(e, max_chars=200):
+def trunc_error_msg(e, max_chars=300):
     return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
 
 
@@ -193,7 +193,7 @@ def get_json_data_from_article(
         page = requests.get(article_url, headers=headers, proxies=proxy, timeout=5)
         status_code = page.status_code
         page.raise_for_status()
-        soup = BeautifulSoup(page.text, 'html.parser')
+        soup = BeautifulSoup(page.content, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
     except requests.exceptions.RequestException as e:
         log.debug(f'Failed to get json data for {article_url} with error: {trunc_error_msg(e)}')
@@ -208,7 +208,7 @@ def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30
         try:
             user_agent = random.choice(config.USER_AGENTS)
             page = requests.get(url, headers={'User-Agent': user_agent})
-            soup = BeautifulSoup(page.text, 'html.parser')
+            soup = BeautifulSoup(page.content, 'html.parser')
             json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
             obj = json.loads(json_text)
             n_offers = obj['props']['pageProps']['numberOfResults']

@@ -80,20 +80,15 @@ def get_content_from_all_pages(
     if headers is None:
         headers = {'User-Agent': random.choice(config.USER_AGENTS)}
 
+    proxies_valid_ips = []
     pages = []
-    # get valid proxies for rotation
-    proxies_valid_ips = get_valid_proxies_multithreading()
 
     for i in range(1, max_pages + 1):
         found = False
         while not found:
-            # case proxies list is empty, we go further only if we have at least 3 valid proxies
-            if len(proxies_valid_ips) == 0:
-                proxies_min = False
-                while not proxies_min:
-                    proxies_valid_ips = get_valid_proxies_multithreading()
-                    if len(proxies_valid_ips) > 3:
-                        proxies_min = True
+            # if less than 3 proxies left, retrieve new proxies for rotation
+            while not len(proxies_valid_ips) > 3:
+                proxies_valid_ips = get_valid_proxies_multithreading()
 
             url_page = f'{search_url}&page={i}'
             proxy_ip = random.choice(proxies_valid_ips)
@@ -109,9 +104,10 @@ def get_content_from_all_pages(
                     proxies_valid_ips.remove(proxy_ip)
             except requests.exceptions.RequestException as e:
                 proxies_valid_ips.remove(proxy_ip)
-                log.error(f'error {e}')
-            pass
-    log.info(f'Content For: {search_url} Extracted!')
+                log.debug(f'Failed to get the content for url: {url_page} with error: {trunc_error_msg(e)}')
+
+    log.info(f'All pages for url: {search_url} were extracted successfully.')
+
     return pages
 
 

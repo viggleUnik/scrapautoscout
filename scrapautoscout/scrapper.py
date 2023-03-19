@@ -66,45 +66,62 @@ def compose_search_url(
 
 def get_content_from_all_pages(
         search_url: str,
-        headers: Dict = None,
         max_pages: int = config.MAX_PAGES,
+        use_proxy: bool = True,
+        sleep_btw_reqs: int = 4,
 ) -> List[BeautifulSoup]:
     """
     Get content of all pages for a given search
     :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-    :param headers: headers
-    :param max_pages: max pages to explore, e.g. 20 allowed
+    :param max_pages: max pages to explore, e.g. 20 allowed by site (by design)
+    :param use_proxy: use proxies? (default: True)
+    :param sleep_btw_reqs: how many seconds to sleep between requests if not using proxies
     :return: list of BeautifulSoup objects (one for each page)
     """
 
-    if headers is None:
-        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
-
     proxies_valid_ips = []
+    proxy_ip = None
+    msg_proxy = ''
     pages = []
 
     for i in range(1, max_pages + 1):
+        url_page = f'{search_url}&page={i}'
+        log.debug(f'retrieving IDs from: {url_page}')
+
         found = False
         while not found:
-            # if less than 3 proxies left, retrieve new proxies for rotation
-            while not len(proxies_valid_ips) > 3:
-                proxies_valid_ips = get_valid_proxies_multithreading()
+            headers = {'User-Agent': random.choice(config.USER_AGENTS)}
+            request_params = {'url': url_page, 'headers': headers, 'timeout': 5}
 
-            url_page = f'{search_url}&page={i}'
-            proxy_ip = random.choice(proxies_valid_ips)
-            proxy = {'http': proxy_ip, 'https': proxy_ip}
+            if use_proxy:
+                # if using proxy, enrich the request parameters with a proxy
+                while not len(proxies_valid_ips) > 0:
+                    proxies_valid_ips = get_valid_proxies_multithreading()
+
+                proxy_ip = random.choice(proxies_valid_ips)
+                request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
+                msg_proxy = f'via proxy {proxy_ip}'
 
             try:
-                page = requests.get(url=url_page, headers=headers, proxies=proxy, timeout=5)
+                page = requests.get(**request_params)
                 if page.status_code == 200:
                     soup = BeautifulSoup(page.content, 'html.parser')
                     pages.append(soup)
                     found = True
                 else:
-                    proxies_valid_ips.remove(proxy_ip)
+                    log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with status: {page.status_code}')
+
             except requests.exceptions.RequestException as e:
+                log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with error: {trunc_error_msg(e)}')
+
+            if not found and use_proxy:
                 proxies_valid_ips.remove(proxy_ip)
-                log.debug(f'Failed to get the content for url: {url_page} via proxy {proxy_ip} with error: {trunc_error_msg(e)}')
+
+            if not use_proxy:
+                # if not using proxies, sleep between requests to avoid getting banned
+                min_sleep = int(0.5 * sleep_btw_reqs)
+                max_sleep = int(1.5 * sleep_btw_reqs)
+                sleep(random.randint(min_sleep, max_sleep))
 
     log.info(f'All pages for url: {search_url} were extracted successfully.')
 

@@ -12,7 +12,7 @@ import boto3
 import math
 
 from scrapautoscout import config
-from scrapautoscout.proxies import get_valid_proxies_multithreading
+from scrapautoscout.proxies import get_valid_proxies_multithreading, PROXIES
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -79,7 +79,8 @@ def get_content_from_all_pages(
     :return: list of BeautifulSoup objects (one for each page)
     """
 
-    proxies_valid_ips = []
+    global PROXIES
+
     proxy_ip = None
     msg_proxy = ''
     pages = []
@@ -95,10 +96,10 @@ def get_content_from_all_pages(
 
             if use_proxy:
                 # if using proxy, enrich the request parameters with a proxy
-                while not len(proxies_valid_ips) > 0:
+                while not len(PROXIES) > 0:
                     proxies_valid_ips = get_valid_proxies_multithreading()
 
-                proxy_ip = random.choice(proxies_valid_ips)
+                proxy_ip = random.choice(PROXIES)
                 request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
                 msg_proxy = f'via proxy {proxy_ip}'
 
@@ -115,7 +116,7 @@ def get_content_from_all_pages(
                 log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with error: {trunc_error_msg(e)}')
 
             if not found and use_proxy:
-                proxies_valid_ips.remove(proxy_ip)
+                PROXIES.remove(proxy_ip)
 
             if not use_proxy:
                 # if not using proxies, sleep between requests to avoid getting banned
@@ -291,7 +292,6 @@ def get_all_article_ids(
         if max_retrievals is not None and n_retrievals > max_retrievals:
             break
 
-        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
         # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
 
         pars = stack.pop()
@@ -306,6 +306,7 @@ def get_all_article_ids(
         search_url = compose_search_url(**pars)
         n_results = get_numbers_of_articles_from_url(search_url)
         retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
+        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
 
         if n_results <= 0:
             # if -1 (error) or 0 (zero results found), then nothing to do, go to next

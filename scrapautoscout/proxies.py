@@ -11,6 +11,8 @@ from scrapautoscout import config
 
 log = logging.getLogger(os.path.basename(__file__))
 
+PROXIES = []
+
 
 def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/') -> List[str]:
     raw_proxies = []
@@ -49,6 +51,11 @@ def extract_response_for_given_ip(proxy, url_for_checks='https://httpbin.org/ip'
 
 def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
     """ scrape proxy list from site https://free-proxy-list.net/"""
+    global PROXIES
+
+    if len(PROXIES) > 0:
+        log.debug('return existing proxies, do not extract yet others')
+        return PROXIES
 
     raw_proxies = []
     n_trials = 0
@@ -65,9 +72,9 @@ def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         for res in executor.map(extract_response_for_given_ip, raw_proxies):
             if res is not None:
-                valid_proxies.append(res)
+                PROXIES.append(res)
 
-    log.debug(f'{len(valid_proxies)} proxies were validated')
+    log.debug(f'{len(PROXIES)} proxies were validated')
 
-    return valid_proxies
+    return PROXIES
 

@@ -47,7 +47,7 @@ def extract_response_for_given_ip(proxy, url_for_checks='https://httpbin.org/ip'
         return None
 
 
-def get_valid_proxies_multithreading() -> List[str]:
+def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
     """ scrape proxy list from site https://free-proxy-list.net/"""
 
     raw_proxies = []
@@ -62,8 +62,7 @@ def get_valid_proxies_multithreading() -> List[str]:
 
     log.debug(f'{len(raw_proxies)} raw proxies extracted, now validating...')
 
-    valid_proxies = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         for res in executor.map(extract_response_for_given_ip, raw_proxies):
             if res is not None:
                 valid_proxies.append(res)

@@ -1,7 +1,7 @@
 import os.path
-import requests  # for making standard html requests
-from bs4 import BeautifulSoup  # magical tool for parsing html data
-import json  # for parsing data
+import requests
+from bs4 import BeautifulSoup
+import json
 from time import sleep
 from typing import Dict, List, Tuple
 import logging
@@ -28,19 +28,27 @@ def compose_search_url(
         **kwargs,
 ) -> str:
 
+    """
+    Compose url with given parameters for filtering
+    examples returned:
+    - https://www.autoscout24.com/lst/bmw?fregfrom=2020&fregto=2020&pricefrom=20000&priceto=23000&page=2
+    - https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
+    """
+
     if not search_url.endswith('/lst'):
         search_url = f'{search_url}/lst'
 
     if maker is not None:
-        search_url = f'{search_url}/{maker.lower()}?'
+        maker = maker.lower().replace(' ', '-')
+        search_url = f'{search_url}/{maker}?'
 
     if not search_url.endswith('?'):
         search_url = f'{search_url}?'
 
     filters = {
+        'adage': adage,
         'fregfrom': fregfrom,
         'fregto': fregto,
-        'adage': adage,
         'pricefrom': pricefrom,
         'priceto': priceto,
     }
@@ -53,66 +61,74 @@ def compose_search_url(
     filters_compounded = '&'.join(filters_str_pairs)
     search_url = f'{search_url}{filters_compounded}'
 
-
-    # examples returned
-    # https://www.autoscout24.com/lst/bmw?fregfrom=2020&fregto=2020&pricefrom=20000&priceto=23000&page=2
-    # https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-
     return search_url
 
 
 def get_content_from_all_pages(
         search_url: str,
-        headers: Dict = None,
         max_pages: int = config.MAX_PAGES,
+        use_proxy: bool = True,
+        sleep_btw_reqs: int = 4,
 ) -> List[BeautifulSoup]:
     """
     Get content of all pages for a given search
     :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-    :param headers: headers
-    :param max_pages: max pages to explore, e.g. 20 allowed
+    :param max_pages: max pages to explore, e.g. 20 allowed by site (by design)
+    :param use_proxy: use proxies? (default: True)
+    :param sleep_btw_reqs: how many seconds to sleep between requests if not using proxies
     :return: list of BeautifulSoup objects (one for each page)
     """
 
-    if headers is None:
-        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
-
+    proxies_valid_ips = []
+    proxy_ip = None
+    msg_proxy = ''
     pages = []
-    # get valid proxies for rotation
-    proxies_valid_ips = get_valid_proxies_multithreading()
 
     for i in range(1, max_pages + 1):
+        url_page = f'{search_url}&page={i}'
+        log.debug(f'retrieving IDs from: {url_page}')
+
         found = False
         while not found:
-            # case proxies list is empty, we go further only if we have at least 3 valid proxies
-            if len(proxies_valid_ips) == 0:
-                proxies_min = False
-                while not proxies_min:
-                    proxies_valid_ips = get_valid_proxies_multithreading()
-                    if len(proxies_valid_ips) > 3:
-                        proxies_min = True
+            headers = {'User-Agent': random.choice(config.USER_AGENTS)}
+            request_params = {'url': url_page, 'headers': headers, 'timeout': 5}
 
-            url_page = f'{search_url}&page={i}'
-            proxy_ip = random.choice(proxies_valid_ips)
-            proxy = {'http': proxy_ip, 'https': proxy_ip}
+            if use_proxy:
+                # if using proxy, enrich the request parameters with a proxy
+                while not len(proxies_valid_ips) > 0:
+                    proxies_valid_ips = get_valid_proxies_multithreading()
+
+                proxy_ip = random.choice(proxies_valid_ips)
+                request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
+                msg_proxy = f'via proxy {proxy_ip}'
 
             try:
-                page = requests.get(url=url_page, headers=headers, proxies=proxy, timeout=5)
+                page = requests.get(**request_params)
                 if page.status_code == 200:
-                    soup = BeautifulSoup(page.text, 'html.parser')
+                    soup = BeautifulSoup(page.content, 'html.parser')
                     pages.append(soup)
                     found = True
                 else:
-                    proxies_valid_ips.remove(proxy_ip)
+                    log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with status: {page.status_code}')
+
             except requests.exceptions.RequestException as e:
+                log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with error: {trunc_error_msg(e)}')
+
+            if not found and use_proxy:
                 proxies_valid_ips.remove(proxy_ip)
-                log.error(f'error {e}')
-            pass
-    log.info(f'Content For: {search_url} Extracted!')
+
+            if not use_proxy:
+                # if not using proxies, sleep between requests to avoid getting banned
+                min_sleep = int(0.5 * sleep_btw_reqs)
+                max_sleep = int(1.5 * sleep_btw_reqs)
+                sleep(random.randint(min_sleep, max_sleep))
+
+    log.info(f'All pages for url: {search_url} were extracted successfully.')
+
     return pages
 
 
-def get_article_ids(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
+def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
     """
     Get all articles IDs from a list of pages
     :param pages: list of BeautifulSoup objects
@@ -163,8 +179,8 @@ def get_all_ids_for_search_url(
 
     nr_of_pages = calculate_nr_of_pages(nr_results=n_search_results)
 
-    list_bs = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
-    ids = get_article_ids(list_bs, n_search_results)
+    list_bs_pages = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
+    ids = get_article_ids_from_pages(list_bs_pages, n_search_results)
 
     # save to cache
     with open(path_file, 'w') as f:
@@ -173,7 +189,7 @@ def get_all_ids_for_search_url(
     return ids
 
 
-def trunc_error_msg(e, max_chars=200):
+def trunc_error_msg(e, max_chars=300):
     return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
 
 
@@ -185,7 +201,7 @@ def get_json_data_from_article(
 ):
 
     if headers is None:
-        headers = config.HEADERS
+        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
 
     article_url = f'{site_url}/offers/{article_id}'
     json_text = None
@@ -194,7 +210,7 @@ def get_json_data_from_article(
         page = requests.get(article_url, headers=headers, proxies=proxy, timeout=5)
         status_code = page.status_code
         page.raise_for_status()
-        soup = BeautifulSoup(page.text, 'html.parser')
+        soup = BeautifulSoup(page.content, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
     except requests.exceptions.RequestException as e:
         log.debug(f'Failed to get json data for {article_url} with error: {trunc_error_msg(e)}')
@@ -203,12 +219,13 @@ def get_json_data_from_article(
 
 
 def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
+    sleep(random.randint(1, 3))
     n_trials = 0
     while n_trials < max_trials:
         try:
             user_agent = random.choice(config.USER_AGENTS)
             page = requests.get(url, headers={'User-Agent': user_agent})
-            soup = BeautifulSoup(page.text, 'html.parser')
+            soup = BeautifulSoup(page.content, 'html.parser')
             json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
             obj = json.loads(json_text)
             n_offers = obj['props']['pageProps']['numberOfResults']
@@ -231,13 +248,133 @@ def calculate_nr_of_pages(
     return min(math.ceil(float(nr_results) / res_per_page), max_pages)
 
 
+def get_all_article_ids(
+        makers: List[str] = config.MAKERS,
+        year_range: Tuple[int, int] = config.YEAR_RANGE,
+        price_range: Tuple[int, int] = config.PRICE_RANGE,
+        adage: int = config.ADAGE,
+        max_results: int = config.MAX_RESULTS,
+        max_retrievals: int = None,
+        price_step = 500,
+):
+    """
+    Get all car ids and save them to cache folder
+    :param max_results: when to stop narrowing the filter, if number of search results is less or equal,
+        no further narrowing is performed, default: 400 results (maximum retrievable per search)
+    :param max_retrievals: maximum allowed number of IDs retrievals
+    """
+    price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
+
+    all_ids = []
+    retrieved_counts = {}
+    n_retrievals = 0
+
+    # initiate stack
+    # - initiate with empty filter, no parameters specified
+    stack = [{}]
+
+    # - initiate with 'adage', if 'adage' was specified
+    if adage is not None:
+        pars = stack.pop()
+        pars_with_adage = {**pars, **{'adage': adage}}
+        stack.append(pars_with_adage)
+
+    # - initiate with makers, if makers were specified (usually, the makers are specified)
+    if makers is not None and len(makers) > 0:
+        pars = stack.pop()
+        for maker in reversed(makers):
+            pars_with_maker = {**pars, **{'maker': maker}}
+            stack.append(pars_with_maker)
+
+    # perform depth first search, narrow filter if too many results found (>max_results)
+    while len(stack) > 0:
+        if max_retrievals is not None and n_retrievals > max_retrievals:
+            break
+
+        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
+        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
+
+        pars = stack.pop()
+        pars_as_key = json.dumps(pars)
+
+        # check if this set of parameters was retrieved before
+        n_results = retrieved_counts.get(pars_as_key, None)
+        if n_results is not None:
+            continue  # if it was already retrieved, then skip to not repeat the same work
+
+        # check how many results are found when searching with this set for parameters
+        search_url = compose_search_url(**pars)
+        n_results = get_numbers_of_articles_from_url(search_url)
+        retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
+
+        if n_results <= 0:
+            # if -1 (error) or 0 (zero results found), then nothing to do, go to next
+            continue
+        elif n_results <= max_results:
+            # if less than maximum results, retrieve all articles IDs, as we don't want to narrow the filter further
+            ids = get_all_ids_for_search_url(search_url, n_results)
+            all_ids.extend(ids)
+            n_retrievals += 1
+        else:
+            # if more than max results, there are too many results, we want to narrow the filter and break down
+            # the set of results with additional parameters if possible
+
+            # try to be more specific about years
+            fregfrom, fregto = pars.get('fregfrom'), pars.get('fregto')
+            pars_has_years = fregfrom is not None and fregto is not None
+            if not pars_has_years:
+                # if params does not have years, add years and append new params to stack
+                fregfrom, fregto = year_range
+                new_pars = {**pars, **{'fregfrom': fregfrom, 'fregto': fregto}}
+                stack.append(new_pars)
+                continue
+            elif pars_has_years and fregfrom < fregto:
+                # if params has years specified and if there is a range between fregfrom and fregto,
+                # then divide it at mid-point into 2 new ranges and add new params to stack
+                mid = (fregfrom + fregto) // 2
+                new_pars_left = {**pars, **{'fregfrom': fregfrom, 'fregto': mid}}
+                new_pars_right = {**pars, **{'fregfrom': mid + 1, 'fregto': fregto}}
+                stack.append(new_pars_left)
+                stack.append(new_pars_right)
+                continue
+
+            # try to be more specific about price
+            pricefrom, priceto = pars.get('pricefrom'), pars.get('priceto')
+            pars_has_prices = pricefrom is not None and priceto is not None
+            if not pars_has_prices:
+                # if params does not have prices, add prices and append new params to stack
+                pricefrom, priceto = price_range
+                new_pars = {**pars, **{'pricefrom': pricefrom, 'priceto': priceto}}
+                stack.append(new_pars)
+                continue
+            elif pars_has_prices and (priceto - pricefrom) > price_step:
+                # if params has prices and if there is a wide enough range between pricefrom and priceto,
+                # then divide it at midpoint into 2 new ranges and add new params to stack
+                mid = (pricefrom + priceto) // 2
+                mid = math.floor(mid / price_step) * price_step  # round down to price_step
+                new_pars_left = {**pars, **{'pricefrom': min(pricefrom, mid), 'priceto': mid}}
+                new_pars_right = {**pars, **{'pricefrom': mid + 1, 'priceto': priceto}}
+                stack.append(new_pars_left)
+                stack.append(new_pars_right)
+                continue
+
+            # if the set of parameters could not be narrowed more, then retrieve just the first 400 IDs for this search
+            ids = get_all_ids_for_search_url(search_url, n_results)
+            all_ids.extend(ids)
+            n_retrievals += 1
+
+    return all_ids
+
+
 def get_all_article_ids_forloop(
         makers: List[str] = config.MAKERS,
         years: List[int] = config.YEARS,
         price_ranges: List[List[int]] = config.PRICE_RANGES,
         max_results: int = config.MAX_RESULTS,
 ):
-    """Get all car ids to cache folder 'get_all_ids_for_search_url' """
+    """
+    Get all car ids and save them to cache folder
+    """
 
     all_ids = []
 

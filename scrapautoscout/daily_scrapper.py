@@ -12,7 +12,7 @@ import boto3
 from datetime import datetime
 
 from scrapautoscout.scrapper import compose_search_url, get_content_from_all_pages, get_article_ids, \
-    get_hash_from_string, get_numbers_of_offers_from_url, calculate_nr_of_pages
+    get_hash_from_string, get_numbers_of_articles_from_url, calculate_nr_of_pages, s3_create_folder_with_jsons_ids
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 
@@ -23,7 +23,7 @@ def daily_get_all_ids_for_search_url(search_url: str,
                                      max_pages: int,
                                      last_page_articles: int,
                                      boto_session: boto3.session.Session,
-                                     bucket_name: str = config.BUCKET
+                                     bucket_name: str = config.AWS_S3_BUCKET
                                      ):
     # Create json file with car_ids
 
@@ -65,10 +65,9 @@ def daily_get_all_article_ids_forloop(
             search_url = compose_search_url(search_url, maker=maker, adage=1, pricefrom=price_from, priceto=price_to)
             log.info(f'SEARCH URL: {search_url}')
 
-            n_results = get_numbers_of_offers_from_url(search_url)
-            if n_results is None:
-                sleep(300)
-                n_results = get_numbers_of_offers_from_url(search_url)
+            n_results = get_numbers_of_articles_from_url(search_url)
+            if n_results == -1:
+                continue
 
             # Case when no car listed on specified url
             if n_results == 0:
@@ -80,8 +79,9 @@ def daily_get_all_article_ids_forloop(
                                                  last_page_articles=last_page_articles, boto_session=session)
 
 
-def daily_read_ids_jsons_files(bucket_name: str = config.BUCKET):
+def daily_read_ids_jsons_files(bucket_name: str = config.AWS_S3_BUCKET):
     # TODO function to read from daily/ymd/ids
+
     # Create a session using the default profile, initialize s3 client
     session = boto3.Session(profile_name='default')
     client = session.client('s3')
@@ -104,25 +104,17 @@ def daily_read_ids_jsons_files(bucket_name: str = config.BUCKET):
                 # Get the object content
                 obj_content = client.get_object(Bucket=bucket_name, Key=obj_key)['Body'].read().decode('utf-8')
                 # Parse the JSON content
-                json_data = json.loads(obj_content)
-                # Get articles
+                car_ids = json.loads(obj_content)
+                # Prefix
+                t_date = datetime.today().strftime('%Y%m%d')
+                prefix = f'daily/{t_date}/articles'
+                # nu e bun pentru ca face check daca exista folderul respectiv, parcurge un fisier si gata,
+                # poate tot de pus in foldere fisierele , ca sa mearga peste toate fisierele
+                s3_create_folder_with_jsons_ids(car_ids, prefix, bucket_name, session )
 
 
 
 
-
-# TODO function to write into daily/ymd/articles
-
-def daily_create_articles_folder(
-        car_ids: List[str],
-        bucket_name: str,
-        boto_session: boto3.session.Session
-):
-    # Use the session to create an S3 client
-    client = boto_session.client('s3')
-    # Prefix
-    t_date = datetime.today().strftime('%Y%m%d')
-    prefix = f'daily/{t_date}/articles/'
 
 
 

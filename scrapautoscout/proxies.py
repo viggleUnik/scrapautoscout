@@ -63,7 +63,7 @@ def get_valid_proxies_multithreading() -> List[str]:
     log.debug(f'{len(raw_proxies)} raw proxies extracted, now validating...')
 
     valid_proxies = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         for res in executor.map(extract_response_for_given_ip, raw_proxies):
             if res is not None:
                 valid_proxies.append(res)

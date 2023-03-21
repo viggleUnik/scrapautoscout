@@ -291,8 +291,8 @@ def get_all_article_ids(
         if max_retrievals is not None and n_retrievals > max_retrievals:
             break
 
+        log.debug('\nstack:\n' + json.dumps(stack, indent=2))
         log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
-        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
 
         pars = stack.pop()
         pars_as_key = json.dumps(pars)

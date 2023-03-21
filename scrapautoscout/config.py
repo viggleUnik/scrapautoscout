@@ -29,6 +29,12 @@ log_urllib3.addHandler(logging.NullHandler())
 log_urllib3.propagate = False
 log_urllib3.setLevel(logging.INFO)
 
+# suppress logs by 'botocore.hooks'
+log_botocore = logging.getLogger('botocore')
+log_botocore.addHandler(logging.NullHandler())
+log_botocore.propagate = False
+log_botocore.setLevel(logging.INFO)
+
 # Search
 # *****************************************************************************
 SITE_URL = 'https://www.autoscout24.com'

@@ -6,6 +6,8 @@ from typing import List
 import random
 from time import sleep
 import logging
+import time
+import json
 
 from scrapautoscout import config
 
@@ -49,23 +51,43 @@ def extract_response_for_given_ip(proxy, url_for_checks='https://httpbin.org/ip'
         return None
 
 
-def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
+def file_age_sec(filepath):
+    return time.time() - os.path.getmtime(filepath)
+
+
+def get_valid_proxies_multithreading(max_workers=100, cache_age_sec=300) -> List[str]:
     """ scrape proxy list from site https://free-proxy-list.net/"""
+    log.debug(f'start get_valid_proxies_multithreading()...')
+
     global PROXIES
 
     if len(PROXIES) > 0:
-        log.debug('use existing proxies, do not extract yet others')
+        log.debug(f'will use {len(PROXIES)} proxies existing currently in runtime, will not extract new proxies yet')
+        return PROXIES
+
+    # load from local cache if available
+    filepathcache = f'{config.DIR_CACHE}/proxies.json'
+    exists_and_not_old = os.path.exists(filepathcache) and file_age_sec(filepathcache) < cache_age_sec
+    if exists_and_not_old:
+        with open(filepathcache) as f:
+            PROXIES = json.load(f)
+        log.debug(f'loaded {len(PROXIES)} proxies from local cache, will not extract new proxies yet')
         return PROXIES
 
     raw_proxies = []
     n_trials = 0
+    max_trials = 10
 
     while not len(raw_proxies) > 0:
-        n_trials += 1
-        log.debug(f"attempt={n_trials}: get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/')")
         raw_proxies = get_raw_proxies_from_url()
+
         if len(raw_proxies) == 0:
-            sleep(10)  # sleep after each failed trial
+            sleep(n_trials * 30)  # sleep after each failed trial
+
+        n_trials += 1
+        if n_trials > max_trials:
+            log.debug(f"get_raw_proxies_from_url('https://free-proxy-list.net/') failed after {n_trials} attempts")
+            return []
 
     log.debug(f'{len(raw_proxies)} raw proxies extracted, now validating...')
 
@@ -75,6 +97,10 @@ def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
                 PROXIES.append(res)
 
     log.debug(f'{len(PROXIES)} proxies were validated')
+
+    # save to cache
+    with open(filepathcache, 'w') as f:
+        json.dump(PROXIES, f, indent=2)
 
     return PROXIES
 

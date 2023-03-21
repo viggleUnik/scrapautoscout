@@ -10,11 +10,14 @@ import hashlib
 import random
 import boto3
 import math
+import concurrent.futures
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 
 log = logging.getLogger(os.path.basename(__file__))
+
+PROXIES = []
 
 
 def compose_search_url(
@@ -79,7 +82,7 @@ def get_content_from_all_pages(
     :return: list of BeautifulSoup objects (one for each page)
     """
 
-    proxies_valid_ips = []
+    global PROXIES
     proxy_ip = None
     msg_proxy = ''
     pages = []
@@ -95,10 +98,10 @@ def get_content_from_all_pages(
 
             if use_proxy:
                 # if using proxy, enrich the request parameters with a proxy
-                while not len(proxies_valid_ips) > 0:
-                    proxies_valid_ips = get_valid_proxies_multithreading()
+                while not len(PROXIES) > 0:
+                    PROXIES = get_valid_proxies_multithreading()
 
-                proxy_ip = random.choice(proxies_valid_ips)
+                proxy_ip = random.choice(PROXIES)
                 request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
                 msg_proxy = f'via proxy {proxy_ip}'
 
@@ -115,7 +118,7 @@ def get_content_from_all_pages(
                 log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with error: {trunc_error_msg(e)}')
 
             if not found and use_proxy:
-                proxies_valid_ips.remove(proxy_ip)
+                PROXIES.remove(proxy_ip)
 
             if not use_proxy:
                 # if not using proxies, sleep between requests to avoid getting banned
@@ -124,6 +127,94 @@ def get_content_from_all_pages(
                 sleep(random.randint(min_sleep, max_sleep))
 
     log.info(f'All pages for url: {search_url} were extracted successfully.')
+
+    return pages
+
+
+def send_get_request(url, headers, proxies=None, timeout=5):
+    msg_proxy = f'via proxy {list(proxies.values())[0]}' if proxies is not None else ''
+    try:
+        page = requests.get(url=url, headers=headers, proxies=proxies, timeout=timeout)
+        if page.status_code == 200:
+            return BeautifulSoup(page.content, 'html.parser')
+        else:
+            log.debug(f'Failed to get content for url: {url} {msg_proxy} with status: {page.status_code}, reason: {page.reason}')
+            return None
+    except requests.exceptions.RequestException as e:
+        log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_error_msg(e)}')
+        return None
+
+
+def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> List[Dict]:
+    global PROXIES
+
+    list_request_params = []
+    for url in urls:
+        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
+        params = {'url': url, 'headers': headers, 'timeout': timeout}
+
+        if use_proxy:
+            # if using proxy, enrich the request parameters with a proxy
+            while not len(PROXIES) > 0:
+                PROXIES = get_valid_proxies_multithreading()
+
+            proxy_ip = random.choice(PROXIES)
+            params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
+
+        list_request_params.append(params)
+
+    return list_request_params
+
+
+def get_content_from_all_pages_parallel(
+        search_url: str,
+        max_pages: int = config.MAX_PAGES,
+        use_proxy: bool = True,
+        get_timeout: int = 5,
+        max_trials: int = 20,
+) -> List[BeautifulSoup]:
+    """
+    Get content of all pages for a given search
+    :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
+    :param max_pages: max pages to explore, e.g. 20 allowed by site (by design)
+    :param use_proxy: use proxies? (default: True)
+    :param get_timeout: time out for get requests
+    :param max_trials: maximum attempts to try before returning whatever was extracted
+    :return: list of BeautifulSoup objects (one for each page)
+    """
+
+    pages = []
+    urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
+    n_trials = 0
+
+    # Send requests in parallel and retry failed requests until the requests for all URLs (pages) are fulfilled
+    while len(urls) > 0:
+        list_kwargs = get_request_params_from_urls(urls, use_proxy=use_proxy, timeout=get_timeout)
+
+        # Send requests asynchronously and retrieve the results
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(list_kwargs)) as executor:
+            results = executor.map(lambda p: send_get_request(**p), list_kwargs)
+
+        for kwargs, result in zip(list_kwargs, results):
+            if result is not None:
+                # if request was successful, keep the result and remove the URL from the list
+                pages.append(result)
+                urls.remove(kwargs['url'])
+            else:
+                # if request failed, remove the proxy that was used for this request
+                if kwargs.get('proxies') is not None:
+                    try:
+                        proxy_ip = list(kwargs.get('proxies').values())[0]
+                        PROXIES.remove(proxy_ip)
+                    except ValueError as e:
+                        pass  # it was removed already by another thread
+
+        n_trials += 1
+        if n_trials > max_trials:
+            break
+
+        log.debug(f'get_content_from_all_pages_parallel(): '
+                  f'attempt={n_trials}, {len(urls)} URLs left, {len(PROXIES)} proxies available')
 
     return pages
 
@@ -291,8 +382,7 @@ def get_all_article_ids(
         if max_retrievals is not None and n_retrievals > max_retrievals:
             break
 
-        log.debug('\nstack:\n' + json.dumps(stack, indent=2))
-        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
+        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
 
         pars = stack.pop()
         pars_as_key = json.dumps(pars)
@@ -306,6 +396,7 @@ def get_all_article_ids(
         search_url = compose_search_url(**pars)
         n_results = get_numbers_of_articles_from_url(search_url)
         retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
+        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
 
         if n_results <= 0:
             # if -1 (error) or 0 (zero results found), then nothing to do, go to next

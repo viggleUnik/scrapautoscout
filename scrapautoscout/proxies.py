@@ -13,8 +13,6 @@ from scrapautoscout import config
 
 log = logging.getLogger(os.path.basename(__file__))
 
-PROXIES = []
-
 
 def get_raw_proxies_from_url(proxies_url='https://free-proxy-list.net/') -> List[str]:
     raw_proxies = []
@@ -59,20 +57,14 @@ def get_valid_proxies_multithreading(max_workers=100, cache_age_sec=300) -> List
     """ scrape proxy list from site https://free-proxy-list.net/"""
     log.debug(f'start get_valid_proxies_multithreading()...')
 
-    global PROXIES
-
-    if len(PROXIES) > 0:
-        log.debug(f'will use {len(PROXIES)} proxies existing currently in runtime, will not extract new proxies yet')
-        return PROXIES
-
     # load from local cache if available
     filepathcache = f'{config.DIR_CACHE}/proxies.json'
     exists_and_not_old = os.path.exists(filepathcache) and file_age_sec(filepathcache) < cache_age_sec
     if exists_and_not_old:
         with open(filepathcache) as f:
-            PROXIES = json.load(f)
-        log.debug(f'loaded {len(PROXIES)} proxies from local cache, will not extract new proxies yet')
-        return PROXIES
+            proxies = json.load(f)
+        log.debug(f'loaded {len(proxies)} proxies from local cache, will not extract new proxies yet')
+        return proxies
 
     raw_proxies = []
     n_trials = 0
@@ -91,16 +83,17 @@ def get_valid_proxies_multithreading(max_workers=100, cache_age_sec=300) -> List
 
     log.debug(f'{len(raw_proxies)} raw proxies extracted, now validating...')
 
+    proxies = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         for res in executor.map(extract_response_for_given_ip, raw_proxies):
             if res is not None:
-                PROXIES.append(res)
+                proxies.append(res)
 
-    log.debug(f'{len(PROXIES)} proxies were validated')
+    log.debug(f'{len(proxies)} proxies were validated')
 
     # save to cache
     with open(filepathcache, 'w') as f:
-        json.dump(PROXIES, f, indent=2)
+        json.dump(proxies, f, indent=2)
 
-    return PROXIES
+    return proxies
 

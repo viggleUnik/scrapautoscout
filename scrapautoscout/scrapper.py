@@ -195,16 +195,17 @@ def get_content_from_all_pages_parallel(
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(list_kwargs)) as executor:
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
-        for args, result in zip(list_kwargs, results):
+        for kwargs, result in zip(list_kwargs, results):
             if result is not None:
                 # if request was successful, keep the result and remove the URL from the list
                 pages.append(result)
-                urls.remove(args['url'])
+                urls.remove(kwargs['url'])
             else:
                 # if request failed, remove the proxy that was used for this request
-                if args.get('proxies') is not None:
+                if kwargs.get('proxies') is not None:
                     try:
-                        PROXIES.remove(list(args.get('proxies').values())[0])
+                        proxy_ip = list(kwargs.get('proxies').values())[0]
+                        PROXIES.remove(proxy_ip)
                     except ValueError as e:
                         pass  # it was removed already by another thread
 

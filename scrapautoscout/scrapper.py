@@ -79,8 +79,6 @@ def get_content_from_all_pages(
     :return: list of BeautifulSoup objects (one for each page)
     """
 
-    global PROXIES
-
     proxy_ip = None
     msg_proxy = ''
     pages = []
@@ -97,7 +95,7 @@ def get_content_from_all_pages(
             if use_proxy:
                 # if using proxy, enrich the request parameters with a proxy
                 while not len(PROXIES) > 0:
-                    proxies_valid_ips = get_valid_proxies_multithreading()
+                    get_valid_proxies_multithreading()
 
                 proxy_ip = random.choice(PROXIES)
                 request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}

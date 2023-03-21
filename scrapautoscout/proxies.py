@@ -54,7 +54,7 @@ def get_valid_proxies_multithreading(max_workers=100) -> List[str]:
     global PROXIES
 
     if len(PROXIES) > 0:
-        log.debug('return existing proxies, do not extract yet others')
+        log.debug('use existing proxies, do not extract yet others')
         return PROXIES
 
     raw_proxies = []

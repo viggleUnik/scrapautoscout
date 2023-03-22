@@ -116,7 +116,7 @@ def get_contents_from_urls(
         :param use_proxy: use proxies? (default: True)
         :param timeout: timeout in seconds, if execution takes more, return partial results, default: no limit
         :param get_timeout: time out for get requests, default: 5 seconds
-        :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
+        :param max_requests_url: maximum requests to try per url, default: 5
         :return: list of BeautifulSoup objects (one for each url)
         """
 
@@ -126,6 +126,7 @@ def get_contents_from_urls(
     n_iters = 0
     tic = time.time()
     func_name = 'get_contents_from_urls()'
+    map_url_reqcount = {url: 0 for url in urls}
 
     # Send requests in parallel and retry failed requests until the requests for all URLs (pages) are fulfilled.
     while len(urls) > 0:
@@ -141,10 +142,11 @@ def get_contents_from_urls(
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
         for kwargs, result in zip(list_kwargs, results):
+            url = kwargs['url']
             if result is not None:
                 # if request was successful, keep the result and remove the URL from the list
                 contents.append(result)
-                urls.remove(kwargs['url'])
+                urls.remove(url)
             else:
                 # if request failed, remove the proxy that was used for this request
                 if kwargs.get('proxies') is not None:
@@ -154,6 +156,11 @@ def get_contents_from_urls(
                     except ValueError as e:
                         pass  # it was removed already by another thread
 
+            # If URL attempted too many times, remove it, probably the URL is invalid
+            map_url_reqcount[url] += 1
+            if map_url_reqcount[url] > max_requests_url and url in urls:
+                urls.remove(url)
+
         # If execution time went beyond timeout limit, stop and return partial results
         toc = time.time()
         exec_time_formatted = format_seconds(toc - tic)
@@ -162,15 +169,8 @@ def get_contents_from_urls(
                         f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
             break
 
-        # If it tried too many times, stop and return partial results
         n_requests += len(urls_sample)
         n_avg_requests_per_url = n_requests / n_init_urls
-        if n_avg_requests_per_url > max_requests_url:
-            log.warning(f'{func_name} generated {n_avg_requests_per_url:.2f} requests per url (on average), '
-                        f'more than the limit={max_requests_url}, '
-                        f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
-            break
-
         n_iters += 1
         log.debug(f'{func_name}: iteration={n_iters}, {len(urls)} URLs left, {len(PROXIES)} proxies available, '
                   f'{n_avg_requests_per_url:.1f} reqs/url, time elapsed: {exec_time_formatted}')

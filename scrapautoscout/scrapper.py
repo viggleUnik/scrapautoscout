@@ -2,11 +2,9 @@ import os.path
 import requests
 from bs4 import BeautifulSoup
 import json
-from time import sleep
+import time
 from typing import Dict, List, Tuple
 import logging
-import base64
-import hashlib
 import random
 import boto3
 import math
@@ -14,6 +12,7 @@ import concurrent.futures
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -67,70 +66,6 @@ def compose_search_url(
     return search_url
 
 
-def get_content_from_all_pages(
-        search_url: str,
-        max_pages: int = config.MAX_PAGES,
-        use_proxy: bool = True,
-        sleep_btw_reqs: int = 4,
-) -> List[BeautifulSoup]:
-    """
-    Get content of all pages for a given search
-    :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-    :param max_pages: max pages to explore, e.g. 20 allowed by site (by design)
-    :param use_proxy: use proxies? (default: True)
-    :param sleep_btw_reqs: how many seconds to sleep between requests if not using proxies
-    :return: list of BeautifulSoup objects (one for each page)
-    """
-
-    global PROXIES
-    proxy_ip = None
-    msg_proxy = ''
-    pages = []
-
-    for i in range(1, max_pages + 1):
-        url_page = f'{search_url}&page={i}'
-        log.debug(f'retrieving IDs from: {url_page}')
-
-        found = False
-        while not found:
-            headers = {'User-Agent': random.choice(config.USER_AGENTS)}
-            request_params = {'url': url_page, 'headers': headers, 'timeout': 5}
-
-            if use_proxy:
-                # if using proxy, enrich the request parameters with a proxy
-                while not len(PROXIES) > 0:
-                    PROXIES = get_valid_proxies_multithreading()
-
-                proxy_ip = random.choice(PROXIES)
-                request_params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
-                msg_proxy = f'via proxy {proxy_ip}'
-
-            try:
-                page = requests.get(**request_params)
-                if page.status_code == 200:
-                    soup = BeautifulSoup(page.content, 'html.parser')
-                    pages.append(soup)
-                    found = True
-                else:
-                    log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with status: {page.status_code}')
-
-            except requests.exceptions.RequestException as e:
-                log.debug(f'Failed to get content for url: {url_page} {msg_proxy} with error: {trunc_error_msg(e)}')
-
-            if not found and use_proxy:
-                PROXIES.remove(proxy_ip)
-
-            if not use_proxy:
-                # if not using proxies, sleep between requests to avoid getting banned
-                min_sleep = int(0.5 * sleep_btw_reqs)
-                max_sleep = int(1.5 * sleep_btw_reqs)
-                sleep(random.randint(min_sleep, max_sleep))
-
-    log.info(f'All pages for url: {search_url} were extracted successfully.')
-
-    return pages
-
-
 def send_get_request(url, headers, proxies=None, timeout=5):
     msg_proxy = f'via proxy {list(proxies.values())[0]}' if proxies is not None else ''
     try:
@@ -166,30 +101,40 @@ def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> 
     return list_request_params
 
 
-def get_content_from_all_pages_parallel(
-        search_url: str,
-        max_pages: int = config.MAX_PAGES,
+def get_contents_from_urls(
+        urls: List[str],
+        max_workers: int = 100,
         use_proxy: bool = True,
+        timeout: int = None,
         get_timeout: int = 5,
-        max_trials: int = 20,
-) -> List[BeautifulSoup]:
+        max_requests_url: int = 5
+    ) -> List[BeautifulSoup]:
     """
-    Get content of all pages for a given search
-    :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
-    :param max_pages: max pages to explore, e.g. 20 allowed by site (by design)
-    :param use_proxy: use proxies? (default: True)
-    :param get_timeout: time out for get requests
-    :param max_trials: maximum attempts to try before returning whatever was extracted
-    :return: list of BeautifulSoup objects (one for each page)
-    """
+        Get content of pages for given URLs
+        :param urls: URLs for which we want to extract the content
+        :param max_workers: maximum number of threads for execution of requests
+        :param use_proxy: use proxies? (default: True)
+        :param timeout: timeout in seconds, if execution takes more, return partial results, default: no limit
+        :param get_timeout: time out for get requests, default: 5 seconds
+        :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
+        :return: list of BeautifulSoup objects (one for each url)
+        """
 
-    pages = []
-    urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
-    n_trials = 0
+    contents = []
+    n_init_urls = len(urls)
+    n_requests = 0
+    n_iters = 0
+    tic = time.time()
+    func_name = 'get_contents_from_urls()'
 
-    # Send requests in parallel and retry failed requests until the requests for all URLs (pages) are fulfilled
+    # Send requests in parallel and retry failed requests until the requests for all URLs (pages) are fulfilled.
     while len(urls) > 0:
-        list_kwargs = get_request_params_from_urls(urls, use_proxy=use_proxy, timeout=get_timeout)
+
+        # Draw a sample of URLs to try on this iteration, if there are more URLs than max_workers
+        urls_sample = random.sample(urls, min(len(urls), max_workers))
+
+        # Get list of parameters to use in get requests
+        list_kwargs = get_request_params_from_urls(urls_sample, use_proxy=use_proxy, timeout=get_timeout)
 
         # Send requests asynchronously and retrieve the results
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(list_kwargs)) as executor:
@@ -198,7 +143,7 @@ def get_content_from_all_pages_parallel(
         for kwargs, result in zip(list_kwargs, results):
             if result is not None:
                 # if request was successful, keep the result and remove the URL from the list
-                pages.append(result)
+                contents.append(result)
                 urls.remove(kwargs['url'])
             else:
                 # if request failed, remove the proxy that was used for this request
@@ -209,21 +154,62 @@ def get_content_from_all_pages_parallel(
                     except ValueError as e:
                         pass  # it was removed already by another thread
 
-        n_trials += 1
-        if n_trials > max_trials:
+        # If execution time went beyond timeout limit, stop and return partial results
+        toc = time.time()
+        exec_time_formatted = format_seconds(toc - tic)
+        if timeout is not None and (toc - tic) > timeout:
+            log.warning(f'{func_name} timed out after {exec_time_formatted}, '
+                        f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
             break
 
-        log.debug(f'get_content_from_all_pages_parallel(): '
-                  f'attempt={n_trials}, {len(urls)} URLs left, {len(PROXIES)} proxies available')
+        # If it tried too many times, stop and return partial results
+        n_requests += len(urls_sample)
+        n_avg_requests_per_url = n_requests / n_init_urls
+        if n_avg_requests_per_url > max_requests_url:
+            log.warning(f'{func_name} generated {n_avg_requests_per_url:.2f} requests per url (on average), '
+                        f'more than the limit={max_requests_url}, '
+                        f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
+            break
 
-    return pages
+        n_iters += 1
+        log.debug(f'{func_name}: iteration={n_iters}, {len(urls)} URLs left, {len(PROXIES)} proxies available, '
+                  f'{n_avg_requests_per_url:.1f} reqs/url, time elapsed: {exec_time_formatted}')
+
+    return contents
+
+
+def get_content_from_all_pages(
+        search_url: str,
+        max_pages: int = config.MAX_PAGES,
+        use_proxy: bool = True,
+        get_timeout: int = 5,
+        max_requests_url: int = 5,
+) -> List[BeautifulSoup]:
+    """
+    Get content of all pages for a given search URL
+    :param search_url: search url, e.g. https://www.autoscout24.com/lst/bmw?fregfrom=2000&fregto=2000&pricefrom=500&priceto=2000
+    :param max_pages: max pages to crawl, e.g. 20 allowed by site (by design)
+    :param use_proxy: use proxies? (default: True)
+    :param get_timeout: time out for get requests
+    :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
+    :return: list of BeautifulSoup objects (one for each page)
+    """
+
+    urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
+
+    return get_contents_from_urls(
+        urls=urls,
+        use_proxy=use_proxy,
+        get_timeout=get_timeout,
+        max_requests_url=max_requests_url
+    )
 
 
 def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
     """
     Get all articles IDs from a list of pages
     :param pages: list of BeautifulSoup objects
-    :n_articles_max: maximum number of articles to extract
+    :param n_articles_max: maximum number of articles to extract
     :return: list of article IDs
     """
     article_ids = []
@@ -236,13 +222,6 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
                 return article_ids
 
     return article_ids
-
-
-def get_hash_from_string(s: str) -> str:
-    md5bytes = hashlib.md5(s.encode()).digest()
-    hash_str = base64.urlsafe_b64encode(md5bytes).decode('ascii')
-    hash_str = ''.join(c for c in hash_str if c.isalnum())
-    return hash_str
 
 
 def get_all_ids_for_search_url(
@@ -280,10 +259,6 @@ def get_all_ids_for_search_url(
     return ids
 
 
-def trunc_error_msg(e, max_chars=300):
-    return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
-
-
 def get_json_data_from_article(
         article_id: str,
         site_url: str = config.SITE_URL,
@@ -310,7 +285,7 @@ def get_json_data_from_article(
 
 
 def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
-    sleep(random.randint(1, 3))
+    time.sleep(random.randint(1, 3))  # sleep between requests because the requests are sent directly, not via proxies
     n_trials = 0
     while n_trials < max_trials:
         try:
@@ -325,7 +300,7 @@ def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30
             log.error(f'Failed to get the number of offers for url {url} on attempt={n_trials} with error: '
                       f'{trunc_error_msg(e)}')
             n_trials += 1
-            sleep(n_trials * sleep_after_fail)  # sleep after failed trial, each time by more
+            time.sleep(n_trials * sleep_after_fail)  # sleep after failed trial, each time by more
 
     log.error(f'Failed to get the number of offers for url {url} after {max_trials} attempts.')
     return -1
@@ -453,56 +428,6 @@ def get_all_article_ids(
             ids = get_all_ids_for_search_url(search_url, n_results)
             all_ids.extend(ids)
             n_retrievals += 1
-
-    return all_ids
-
-
-def get_all_article_ids_forloop(
-        makers: List[str] = config.MAKERS,
-        years: List[int] = config.YEARS,
-        price_ranges: List[List[int]] = config.PRICE_RANGES,
-        max_results: int = config.MAX_RESULTS,
-):
-    """
-    Get all car ids and save them to cache folder
-    """
-
-    all_ids = []
-
-    # find results for makers
-    for maker in makers:
-        # find results for years of registration
-        for year in years:
-            search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year)
-            n_results = get_numbers_of_articles_from_url(search_url)
-
-            if n_results == -1:
-                continue  # case when error
-
-            elif n_results == 0:
-                continue
-
-            elif n_results < max_results:
-                # case when less than 400 results found (max nr of pages explorable via browser)
-                ids = get_all_ids_for_search_url(search_url, n_results)
-                all_ids.extend(ids)
-
-            elif n_results > max_results:
-                # case when more than 400 results found, will narrow the search with price ranges
-                for price_from, price_to in price_ranges:
-                    search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year,
-                                                    pricefrom=price_from, priceto=price_to)
-                    n_results = get_numbers_of_articles_from_url(search_url)
-
-                    if n_results == -1:
-                        continue
-
-                    elif n_results == 0:
-                        continue
-
-                    elif n_results > 0:
-                        ids = get_all_ids_for_search_url(search_url, n_results)
-                        all_ids.extend(ids)
 
     return all_ids
 

@@ -3,7 +3,7 @@ import os
 
 import scrapautoscout.config as config
 # from scrapautoscout import config
-from scrapautoscout.scrapper import get_all_article_ids_forloop, s3_read_ids_json_files_from_cache
+from scrapautoscout.scrapper import get_all_article_ids, s3_read_ids_json_files_from_cache
 from scrapautoscout.daily_scrapper import daily_get_all_article_ids_forloop
 
 

@@ -432,56 +432,6 @@ def get_all_article_ids(
     return all_ids
 
 
-def get_all_article_ids_forloop(
-        makers: List[str] = config.MAKERS,
-        years: List[int] = config.YEARS,
-        price_ranges: List[List[int]] = config.PRICE_RANGES,
-        max_results: int = config.MAX_RESULTS,
-):
-    """
-    Get all car ids and save them to cache folder
-    """
-
-    all_ids = []
-
-    # find results for makers
-    for maker in makers:
-        # find results for years of registration
-        for year in years:
-            search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year)
-            n_results = get_numbers_of_articles_from_url(search_url)
-
-            if n_results == -1:
-                continue  # case when error
-
-            elif n_results == 0:
-                continue
-
-            elif n_results < max_results:
-                # case when less than 400 results found (max nr of pages explorable via browser)
-                ids = get_all_ids_for_search_url(search_url, n_results)
-                all_ids.extend(ids)
-
-            elif n_results > max_results:
-                # case when more than 400 results found, will narrow the search with price ranges
-                for price_from, price_to in price_ranges:
-                    search_url = compose_search_url(maker=maker, fregfrom=year, fregto=year,
-                                                    pricefrom=price_from, priceto=price_to)
-                    n_results = get_numbers_of_articles_from_url(search_url)
-
-                    if n_results == -1:
-                        continue
-
-                    elif n_results == 0:
-                        continue
-
-                    elif n_results > 0:
-                        ids = get_all_ids_for_search_url(search_url, n_results)
-                        all_ids.extend(ids)
-
-    return all_ids
-
-
 def read_ids_json_files_from_cache():
     """Get car ids from cached json files"""
 

@@ -209,7 +209,7 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
     """
     Get all articles IDs from a list of pages
     :param pages: list of BeautifulSoup objects
-    :n_articles_max: maximum number of articles to extract
+    :param n_articles_max: maximum number of articles to extract
     :return: list of article IDs
     """
     article_ids = []
@@ -285,7 +285,7 @@ def get_json_data_from_article(
 
 
 def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
-    time.sleep(random.randint(1, 3))
+    time.sleep(random.randint(1, 3))  # sleep between requests because the requests are sent directly, not via proxies
     n_trials = 0
     while n_trials < max_trials:
         try:

@@ -14,6 +14,7 @@ import concurrent.futures
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -238,13 +239,6 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
     return article_ids
 
 
-def get_hash_from_string(s: str) -> str:
-    md5bytes = hashlib.md5(s.encode()).digest()
-    hash_str = base64.urlsafe_b64encode(md5bytes).decode('ascii')
-    hash_str = ''.join(c for c in hash_str if c.isalnum())
-    return hash_str
-
-
 def get_all_ids_for_search_url(
         search_url: str,
         n_search_results: int = None,
@@ -278,10 +272,6 @@ def get_all_ids_for_search_url(
         json.dump(ids, f, indent=2)
 
     return ids
-
-
-def trunc_error_msg(e, max_chars=300):
-    return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
 
 
 def get_json_data_from_article(

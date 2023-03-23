@@ -19,6 +19,11 @@ log = logging.getLogger(os.path.basename(__file__))
 PROXIES = []
 
 
+# TODO: extract all IDs
+# - load existing hashes of search params
+# -
+
+
 def compose_search_url(
         search_url: str = config.SITE_URL,
         maker: str = None,
@@ -116,7 +121,7 @@ def get_contents_from_urls(
         :param use_proxy: use proxies? (default: True)
         :param timeout: timeout in seconds, if execution takes more, return partial results, default: no limit
         :param get_timeout: time out for get requests, default: 5 seconds
-        :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
+        :param max_requests_url: maximum requests to try per url, default: 5
         :return: list of BeautifulSoup objects (one for each url)
         """
 
@@ -126,6 +131,7 @@ def get_contents_from_urls(
     n_iters = 0
     tic = time.time()
     func_name = 'get_contents_from_urls()'
+    map_url_reqcount = {url: 0 for url in urls}
 
     # Send requests in parallel and retry failed requests until the requests for all URLs (pages) are fulfilled.
     while len(urls) > 0:
@@ -141,10 +147,11 @@ def get_contents_from_urls(
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
         for kwargs, result in zip(list_kwargs, results):
+            url = kwargs['url']
             if result is not None:
                 # if request was successful, keep the result and remove the URL from the list
                 contents.append(result)
-                urls.remove(kwargs['url'])
+                urls.remove(url)
             else:
                 # if request failed, remove the proxy that was used for this request
                 if kwargs.get('proxies') is not None:
@@ -154,6 +161,11 @@ def get_contents_from_urls(
                     except ValueError as e:
                         pass  # it was removed already by another thread
 
+            # If URL attempted too many times, remove it, probably the URL is invalid
+            map_url_reqcount[url] += 1
+            if map_url_reqcount[url] > max_requests_url and url in urls:
+                urls.remove(url)
+
         # If execution time went beyond timeout limit, stop and return partial results
         toc = time.time()
         exec_time_formatted = format_seconds(toc - tic)
@@ -162,15 +174,8 @@ def get_contents_from_urls(
                         f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
             break
 
-        # If it tried too many times, stop and return partial results
         n_requests += len(urls_sample)
         n_avg_requests_per_url = n_requests / n_init_urls
-        if n_avg_requests_per_url > max_requests_url:
-            log.warning(f'{func_name} generated {n_avg_requests_per_url:.2f} requests per url (on average), '
-                        f'more than the limit={max_requests_url}, '
-                        f'returning partial results for {len(contents)} URLs out of {n_init_urls}...')
-            break
-
         n_iters += 1
         log.debug(f'{func_name}: iteration={n_iters}, {len(urls)} URLs left, {len(PROXIES)} proxies available, '
                   f'{n_avg_requests_per_url:.1f} reqs/url, time elapsed: {exec_time_formatted}')
@@ -194,9 +199,9 @@ def get_content_from_all_pages(
     :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
     :return: list of BeautifulSoup objects (one for each page)
     """
-
+    # Compose url for given number of pages into a list of urls
     urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
-
+    # Get a List[BeautifulSoup] with content of searched pages
     return get_contents_from_urls(
         urls=urls,
         use_proxy=use_proxy,
@@ -227,8 +232,11 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
 def get_all_ids_for_search_url(
         search_url: str,
         n_search_results: int = None,
+        cache_location: str = 'local',
         cache_folder: str = 'get_all_ids_for_search_url'
     ):
+
+    # TODO: cache_folder depends on cache location
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
@@ -237,12 +245,14 @@ def get_all_ids_for_search_url(
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
 
-    # load from local cache if available
+    # load from local cache if available and stop execution
     if os.path.exists(path_file):
         with open(path_file) as f:
             ids = json.load(f)
         log.debug(f'loaded {len(ids)} from local cache')
         return ids
+
+
 
     if n_search_results is None:
         n_search_results = get_numbers_of_articles_from_url(search_url)
@@ -265,6 +275,7 @@ def get_json_data_from_article(
         headers: Dict = None,
         proxy: Dict = None,
 ):
+
 
     if headers is None:
         headers = {'User-Agent': random.choice(config.USER_AGENTS)}
@@ -322,6 +333,7 @@ def get_all_article_ids(
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
         price_step = 500,
+        cache_location: str = 'local',
 ):
     """
     Get all car ids and save them to cache folder
@@ -430,6 +442,10 @@ def get_all_article_ids(
             n_retrievals += 1
 
     return all_ids
+
+# TODO : Change read files with jsons, change get requests by reading whole file and put into list
+# TODO : Make more requests at one time with multiple threads
+# TODO : Read files local by default or read from s3 bucket
 
 
 def read_ids_json_files_from_cache():

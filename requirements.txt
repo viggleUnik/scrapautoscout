@@ -3,4 +3,5 @@ beautifulsoup4==4.11.1
 psycopg2-binary==2.9.5
 boto3==1.26.86
 s3fs
+tqdm
 # awscli==1.27.86

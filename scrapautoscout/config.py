@@ -9,6 +9,9 @@ DIR_ARTIFACTS = os.path.join(os.getcwd(), 'artifacts')
 os.makedirs(DIR_ARTIFACTS, exist_ok=True)
 DIR_CACHE = os.path.join(os.getcwd(), 'cache')
 os.makedirs(DIR_CACHE, exist_ok=True)
+FOLDER_IDS = 'ids'
+FOLDER_ARTICLES = 'articles'
+
 # aws s3
 AWS_S3_BUCKET = 'scrapautoscout-bucket'
 

@@ -527,28 +527,56 @@ def load_ids_of_all_extracted_articles_local() -> List[str]:
     return all_ids_of_articles
 
 
-def find_ids_left_to_extract_local() -> List[str]:
-    ids_known = load_all_known_ids_local()
-    ids_extracted = load_ids_of_all_extracted_articles_local()
-    ids_left_to_extract = list(set(ids_known).difference(set(ids_extracted)))
-    return ids_left_to_extract
-
-
-def find_ids_left_to_extract_s3():
-    # TODO
+def load_all_known_ids_s3():
+    # TODO: implement
     raise NotImplementedError()
+
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(config.AWS_S3_BUCKET)
+    paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
+    all_ids = []
+
+    for page in paginator:
+        for obj in page:
+            # TODO: read IDs from json file and append to all_ids
+            pass
+
+    return all_ids
+
+
+def load_ids_of_all_extracted_articles_s3():
+    # TODO: implement
+    raise NotImplementedError()
+
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(config.AWS_S3_BUCKET)
+    # use pagination to extract all keys, not just first 1000
+    paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
+    all_ids = []
+
+    for page in paginator:
+        for obj in page:
+            if obj.key.endswith('.json'):
+                file_base_name = obj.key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
+                all_ids.append(file_base_name.replace('.json', ''))
+
+    return all_ids
 
 
 def find_ids_left_to_extract(location: str = 'local'):
     if location == 'local':
-        ids = find_ids_left_to_extract_local()
+        ids_known = load_all_known_ids_local()
+        ids_extracted = load_ids_of_all_extracted_articles_local()
     elif location == 's3':
-        ids = find_ids_left_to_extract_s3()
+        ids_known = load_all_known_ids_s3()
+        ids_extracted = load_ids_of_all_extracted_articles_s3()
     else:
         raise ValueError(f'location={location} not recognized')
 
-    log.debug(f'found {len(ids)} IDs left to extract')
-    return ids
+    ids_left_to_extract = list(set(ids_known).difference(set(ids_extracted)))
+    log.debug(f'found {len(ids_left_to_extract)} IDs left to extract')
+
+    return ids_left_to_extract
 
 
 def save_json_txt_to_local(json_txt, id_article):

@@ -19,6 +19,11 @@ log = logging.getLogger(os.path.basename(__file__))
 PROXIES = []
 
 
+# TODO: extract all IDs
+# - load existing hashes of search params
+# -
+
+
 def compose_search_url(
         search_url: str = config.SITE_URL,
         maker: str = None,
@@ -194,9 +199,9 @@ def get_content_from_all_pages(
     :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
     :return: list of BeautifulSoup objects (one for each page)
     """
-
+    # Compose url for given number of pages into a list of urls
     urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
-
+    # Get a List[BeautifulSoup] with content of searched pages
     return get_contents_from_urls(
         urls=urls,
         use_proxy=use_proxy,
@@ -227,8 +232,11 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
 def get_all_ids_for_search_url(
         search_url: str,
         n_search_results: int = None,
+        cache_location: str = 'local',
         cache_folder: str = 'get_all_ids_for_search_url'
     ):
+
+    # TODO: cache_folder depends on cache location
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
@@ -237,12 +245,14 @@ def get_all_ids_for_search_url(
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
 
-    # load from local cache if available
+    # load from local cache if available and stop execution
     if os.path.exists(path_file):
         with open(path_file) as f:
             ids = json.load(f)
         log.debug(f'loaded {len(ids)} from local cache')
         return ids
+
+
 
     if n_search_results is None:
         n_search_results = get_numbers_of_articles_from_url(search_url)
@@ -265,6 +275,7 @@ def get_json_data_from_article(
         headers: Dict = None,
         proxy: Dict = None,
 ):
+
 
     if headers is None:
         headers = {'User-Agent': random.choice(config.USER_AGENTS)}
@@ -322,6 +333,7 @@ def get_all_article_ids(
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
         price_step = 500,
+        cache_location: str = 'local',
 ):
     """
     Get all car ids and save them to cache folder
@@ -430,6 +442,10 @@ def get_all_article_ids(
             n_retrievals += 1
 
     return all_ids
+
+# TODO : Change read files with jsons, change get requests by reading whole file and put into list
+# TODO : Make more requests at one time with multiple threads
+# TODO : Read files local by default or read from s3 bucket
 
 
 def read_ids_json_files_from_cache():

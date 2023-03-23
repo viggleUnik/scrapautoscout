@@ -9,6 +9,8 @@ import random
 import boto3
 import math
 import concurrent.futures
+import glob
+from tqdm import tqdm
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
@@ -108,7 +110,7 @@ def get_contents_from_urls(
         timeout: int = None,
         get_timeout: int = 5,
         max_requests_url: int = 5
-    ) -> List[BeautifulSoup]:
+    ) -> Dict[str, BeautifulSoup]:
     """
         Get content of pages for given URLs
         :param urls: URLs for which we want to extract the content
@@ -120,7 +122,7 @@ def get_contents_from_urls(
         :return: list of BeautifulSoup objects (one for each url)
         """
 
-    contents = []
+    contents = {}
     n_init_urls = len(urls)
     n_requests = 0
     n_iters = 0
@@ -141,10 +143,11 @@ def get_contents_from_urls(
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
         for kwargs, result in zip(list_kwargs, results):
+            url = kwargs['url']
             if result is not None:
                 # if request was successful, keep the result and remove the URL from the list
-                contents.append(result)
-                urls.remove(kwargs['url'])
+                contents[url] = result
+                urls.remove(url)
             else:
                 # if request failed, remove the proxy that was used for this request
                 if kwargs.get('proxies') is not None:
@@ -172,7 +175,8 @@ def get_contents_from_urls(
             break
 
         n_iters += 1
-        log.debug(f'{func_name}: iteration={n_iters}, {len(urls)} URLs left, {len(PROXIES)} proxies available, '
+        log.debug(f'{func_name}: iteration={n_iters}, {len(contents)} URLs extracted out of {n_init_urls} '
+                  f'({len(contents)/n_init_urls * 100:.1f}%), {len(PROXIES)} proxies available, '
                   f'{n_avg_requests_per_url:.1f} reqs/url, time elapsed: {exec_time_formatted}')
 
     return contents
@@ -196,13 +200,13 @@ def get_content_from_all_pages(
     """
 
     urls = [f'{search_url}&page={i}' for i in range(1, max_pages + 1)]
-
-    return get_contents_from_urls(
+    contents = get_contents_from_urls(
         urls=urls,
         use_proxy=use_proxy,
         get_timeout=get_timeout,
         max_requests_url=max_requests_url
     )
+    return list(contents.values())
 
 
 def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int = None) -> List[str]:
@@ -223,17 +227,26 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
 
     return article_ids
 
+# audi
+# ...
+# bmw
+#  - 2023
+#     - 20230323
+#     - 20230301
+#  - 2022
+#  - ...
+#  - 1980
+
 
 def get_all_ids_for_search_url(
         search_url: str,
         n_search_results: int = None,
-        cache_folder: str = 'get_all_ids_for_search_url'
     ):
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
     # cache dir and json file with ids
-    dir_cache = f'{config.DIR_CACHE}/{cache_folder}'
+    dir_cache = f'{config.DIR_CACHE}/{config.FOLDER_IDS}'
     os.makedirs(dir_cache, exist_ok=True)
     path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
 
@@ -251,6 +264,7 @@ def get_all_ids_for_search_url(
 
     list_bs_pages = get_content_from_all_pages(search_url, max_pages=nr_of_pages)
     ids = get_article_ids_from_pages(list_bs_pages, n_search_results)
+    ids = list(set(ids))  # unique IDs
 
     # save to cache
     with open(path_file, 'w') as f:
@@ -432,16 +446,159 @@ def get_all_article_ids(
     return all_ids
 
 
+def compose_url_id(id: str, site_url: config.SITE_URL):
+    return f'{site_url}/offers/{id}'
+
+
+def get_content_for_article_ids(
+        ids: List[str],
+        site_url: str = config.SITE_URL,
+        use_proxy: bool = True,
+        get_timeout: int = 5,
+        max_requests_url: int = 5,
+) -> Dict[str, BeautifulSoup]:
+    """
+    Get content for given IDs
+    :param ids: list of IDs to extract
+    :param site_url: site url, default: https://www.autoscout24.com
+    :param use_proxy: use proxies? (default: True)
+    :param get_timeout: time out for get requests
+    :param max_requests_url: maximum requests to try per url, if limit surpassed return partial results, default: 5
+    :return: list of BeautifulSoup objects (one for each page)
+    """
+
+    urls = [compose_url_id(id_, site_url) for id_ in ids]
+    dict_url_content = get_contents_from_urls(
+        urls=urls,
+        use_proxy=use_proxy,
+        get_timeout=get_timeout,
+        max_requests_url=max_requests_url
+    )
+
+    dict_id_content = {}
+    for id_ in ids:
+        url_key = compose_url_id(id_, site_url)
+        content = dict_url_content.get(url_key)
+        if content is not None:
+            dict_id_content[id_] = content
+
+    return dict_id_content
+
+
+def get_json_txt_from_article(article_bs: BeautifulSoup) -> str:
+    """ Extract json text from the BeautifulSoup object of an article"""
+    json_txt = article_bs.select_one('script[id="__NEXT_DATA__"]').text
+    json_txt = truncate_useless_from_json_text(json_txt)
+    return json_txt
+
+
+def truncate_useless_from_json_text(json_txt) -> str:
+    # TODO: truncate unused info: parse to dictionary, drop useless elements, dumps dict as json txt json.dumps(...,indent=2)
+    return json_txt
+
+
+def load_all_known_ids_local() -> List[str]:
+    files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
+    all_ids = []
+
+    for file_json in files_json:
+        with open(file_json, 'r') as file:
+            ids = json.load(file)
+            all_ids.extend(ids)
+
+    return all_ids
+
+
+def load_ids_of_all_extracted_articles_local() -> List[str]:
+    files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_ARTICLES}/*.json')
+    all_ids_of_articles = [os.path.basename(f).replace('.json', '') for f in files_json]
+    return all_ids_of_articles
+
+
+def find_ids_left_to_extract_local() -> List[str]:
+    ids_known = load_all_known_ids_local()
+    ids_extracted = load_ids_of_all_extracted_articles_local()
+    ids_left_to_extract = list(set(ids_known).difference(set(ids_extracted)))
+    return ids_left_to_extract
+
+
+def find_ids_left_to_extract_s3():
+    # TODO
+    raise NotImplementedError()
+
+
+def find_ids_left_to_extract(location: str = 'local'):
+    if location == 'local':
+        ids = find_ids_left_to_extract_local()
+    elif location == 's3':
+        ids = find_ids_left_to_extract_s3()
+    else:
+        raise ValueError(f'location={location} not recognized')
+
+    log.debug(f'found {len(ids)} IDs left to extract')
+    return ids
+
+
+def save_json_txt_to_local(json_txt, id_article):
+    dir_local = f'{config.DIR_CACHE}/{config.FOLDER_ARTICLES}'
+    os.makedirs(dir_local, exist_ok=True)
+
+    with open(f'{dir_local}/{id_article}.json', 'w') as f:
+        f.write(json_txt)
+
+
+def save_json_txt_to_s3(json_txt, id_article):
+    # TODO
+    raise NotImplementedError()
+
+
+def save_json_txt(json_txt, id_article, location: str = 'local'):
+    if location == 'local':
+        return save_json_txt_to_local(json_txt, id_article)
+    elif location == 's3':
+        return save_json_txt_to_s3(json_txt, id_article)
+    else:
+        raise ValueError(f'location={location} not recognized')
+
+
+def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 1000):
+    ids = find_ids_left_to_extract(location)
+    n_attempted = 0
+    n_extracted = 0
+    n_init_ids = len(ids)
+    pb = tqdm(total=n_init_ids, unit='ID', mininterval=30, miniters=100, leave=False)
+
+    while len(ids) > 0:
+        ids_part, ids = ids[:chunk_size], ids[chunk_size:]
+        contents = get_content_for_article_ids(ids_part)
+        n_attempted += len(ids_part)
+
+        for id_article, content_article in contents.items():
+            try:
+                json_txt = get_json_txt_from_article(content_article)
+            except:
+                log.error(f'Failed to get json txt from BeautifulSoup obj of article with ID: {id_article}')
+                continue
+
+            save_json_txt(json_txt=json_txt, id_article=id_article, location=location)
+            n_extracted += 1
+
+        log.debug(f'{n_attempted/n_init_ids * 100:.1f}% of IDs attempted, '
+                  f'success rate: {n_extracted/n_attempted * 100:.1f}%')
+        pb.update(len(ids_part))
+
+
+
 def read_ids_json_files_from_cache():
     """Get car ids from cached json files"""
 
-    path_to_json = f'{config.DIR_CACHE}/get_all_ids_for_search_url/'
+    path_to_json = f'{config.DIR_CACHE}/{config.FOLDER_IDS}/'
     json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
 
     dir_get_content = f'{config.DIR_CACHE}/get_content_id'
     os.makedirs(dir_get_content, exist_ok=True)
 
-    # file browsing in 'cache/get_all_ids_for_search_url'
+    # file browsing in 'cache/ids'
     for jfile in json_files:
         with open(path_to_json + jfile, 'r') as file:
             list_ids = json.load(file)
@@ -511,13 +668,13 @@ def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
 
 
 def s3_read_ids_json_files_from_cache():
-    path_to_json = f'{config.DIR_CACHE}/get_all_ids_for_search_url'
+    path_to_json = f'{config.DIR_CACHE}/ids'
     json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
 
     # Create a session using the default profile
     session = boto3.Session(profile_name='default')
 
-    # file browsing in 'cache/get_all_ids_for_search_url'
+    # file browsing in 'cache/ids'
     for jfile in json_files:
         with open(f'{path_to_json}/{jfile}', 'r') as file:
             list_ids = json.load(file)

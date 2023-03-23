@@ -10,9 +10,9 @@ def format_seconds(secs):
     if secs < 60:
         return f'{secs:.3f}sec'
     elif secs < 60 * 60:
-        return f'{t[1]}min {int(t[2])}sec'
+        return f'{t[1]}min {t[2]}sec'
     else:
-        return f'{t[0]}hours {t[1]}min {int(t[2])}sec'
+        return f'{t[0]}hours {t[1]}min {t[2]}sec'
 
 
 def get_hash_from_string(s: str) -> str:

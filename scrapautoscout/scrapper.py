@@ -521,7 +521,7 @@ def transform_vehicle_equipment(obj: Dict):
 
 
 def truncate_useless_data_from_json_text(json_txt) -> str:
-    # This strips off unused data from json text, decreasing the size it by ~87%, (~7.5x times smaller)
+    # This strips off unused data from json text, decreasing the size of it by ~87%, (~7.5x times smaller)
 
     # load json text as dictionary object
     obj = json.loads(json_txt)
@@ -538,7 +538,7 @@ def truncate_useless_data_from_json_text(json_txt) -> str:
     # remove keys with null/none values, this truncates an additional ~2% of text size
     remove_none_from_dict(truncated_obj)
 
-    # transform some elements for smaller size, truncated size = ~10% of original text size (~10x times smaller)
+    # transform some elements for smaller size, truncated size = ~13% of original text size (~7.5x times smaller)
     transform_vehicle_equipment(truncated_obj)
 
     return json.dumps(truncated_obj)

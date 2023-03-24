@@ -14,7 +14,8 @@ from tqdm import tqdm
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
-from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg, update_nested_dict, \
+    remove_none_from_dict
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -500,13 +501,41 @@ def get_content_for_article_ids(
 def get_json_txt_from_article(article_bs: BeautifulSoup) -> str:
     """ Extract json text from the BeautifulSoup object of an article"""
     json_txt = article_bs.select_one('script[id="__NEXT_DATA__"]').text
-    json_txt = truncate_useless_from_json_text(json_txt)
+    json_txt = truncate_useless_data_from_json_text(json_txt)
     return json_txt
 
 
-def truncate_useless_from_json_text(json_txt) -> str:
-    # TODO: truncate unused info: parse to dictionary, drop useless elements, dumps dict as json txt json.dumps(...,indent=2)
-    return json_txt
+def transform_vehicle_equipment(obj: Dict):
+    keys = ['comfortAndConvenience', 'entertainmentAndMedia', 'extras', 'safetyAndSecurity']
+    for k in keys:
+        elems = obj['props']['pageProps']['listingDetails']['vehicle'].get('equipment', {}).get(k, [])
+        if len(elems) > 0:
+            obj['props']['pageProps']['listingDetails']['vehicle']['equipment'][k] = [e['id'] for e in elems]
+    return obj
+
+
+def truncate_useless_data_from_json_text(json_txt) -> str:
+    # This strips off unused data from json text, decreasing the size it by ~87%, (~7.5x times smaller)
+
+    # load json text as dictionary object
+    obj = json.loads(json_txt)
+
+    # copy the structure of the elements we want to keep
+    truncated_obj = copy.deepcopy(config.JSON_TXT_KEEP)
+
+    # override the specified keys with values from obj, truncated size = ~25% of original text size (~4x times smaller)
+    update_nested_dict(truncated_obj, obj)
+
+    # override some keys with None, truncated size = ~15% of original text size (~7x times smaller)
+    update_nested_dict(truncated_obj, copy.deepcopy(config.JSON_TXT_REMOVE))
+
+    # remove keys with null/none values, this truncates an additional ~2% of text size
+    remove_none_from_dict(truncated_obj)
+
+    # transform some elements for smaller size, truncated size = ~10% of original text size (~10x times smaller)
+    transform_vehicle_equipment(truncated_obj)
+
+    return json.dumps(truncated_obj)
 
 
 def load_all_known_ids_local() -> List[str]:

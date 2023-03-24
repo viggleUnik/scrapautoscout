@@ -24,3 +24,28 @@ def get_hash_from_string(s: str) -> str:
 
 def trunc_error_msg(e, max_chars=300):
     return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
+
+
+def update_nested_dict(d, u, only_existing_keys=True):
+    for k, v in u.items():
+
+        if only_existing_keys and k not in d:
+            continue
+
+        if isinstance(v, dict):
+            if d.get(k, None) is None or d[k] == {}:
+                d[k] = v
+            else:
+                d[k] = update_nested_dict(d.get(k, {}), v)
+        else:
+            d[k] = v
+
+    return d
+
+
+def remove_none_from_dict(d):
+    for k, v in list(d.items()):
+        if isinstance(v, dict):
+            remove_none_from_dict(v)
+        elif v is None:
+            del d[k]

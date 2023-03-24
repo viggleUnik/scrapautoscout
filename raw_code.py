@@ -7,11 +7,13 @@ import db.insert_data as insert
 from datetime import datetime
 import os
 from db.extract_data import get_details_from_raw_json
+from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 
 aws_access_key_id = os.environ['AWS_SECRET_KEY']
 aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
 region_name = 'eu-west-3'
+bucket_name = 'scrapautoscout-bucket'
 
 # Creating the low level functional client
 client = boto3.client(
@@ -28,6 +30,28 @@ resource = boto3.resource(
     aws_access_key_id=aws_access_key_id,
     aws_secret_access_key=aws_secret_access_key
 )
+
+if os.path.exists(f'{config.DIR_CACHE}/s3_keys.txt'):
+    with open('s3_keys.txt', 'r') as f:
+        existing_keys = f.read().splitlines()
+else:
+    existing_keys = []
+
+prefix = 'initial/'
+
+paginator = client.get_paginator('list_objects_v2')
+for result in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+    if 'Contents' in result:
+        # Append object keys to list
+        # keys += [obj['Key'] for obj in result['Contents']]
+        keys +=
+
+counter = 0
+for key in keys:
+    counter += 1
+    print(key)
+
+print(f'total: {counter}')
 
 # # Code to create a folder into s3 bucket
 # bucket_name = 'scrapautoscout-bucket'
@@ -155,16 +179,6 @@ resource = boto3.resource(
 
 # link to cars added 1 day ago
 # https://www.autoscout24.com/lst/bmw?adage=1
-import time
-import os
-print(os.cpu_count())
-start = time.time()
-
-ip_list = get_valid_proxies_multithreading()
-
-end = time.time()
-print(end - start)
-print(ip_list)
 
 
 

@@ -458,8 +458,8 @@ def get_all_article_ids(
 # TODO : Read files local by default or read from s3 bucket
 
 
-def compose_url_id(id: str, site_url: config.SITE_URL):
-    return f'{site_url}/offers/{id}'
+def compose_url_id(id_: str, site_url: config.SITE_URL):
+    return f'{site_url}/offers/{id_}'
 
 
 def get_content_for_article_ids(
@@ -561,6 +561,8 @@ def save_json_txt_to_local(json_txt, id_article):
 
 def save_json_txt_to_s3(json_txt, id_article):
     # TODO
+
+
     raise NotImplementedError()
 
 
@@ -598,6 +600,7 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
         log.debug(f'{n_attempted/n_init_ids * 100:.1f}% of IDs attempted, '
                   f'success rate: {n_extracted/n_attempted * 100:.1f}%')
         pb.update(len(ids_part))
+
 
 
 

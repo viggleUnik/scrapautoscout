@@ -133,3 +133,46 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.1 Safari/605.1.15",
 ]
+
+
+# What to keep/remove from original json data extracted from the site
+# *****************************************************************************
+JSON_TXT_KEEP = {
+    'props': {
+        'pageProps': {
+            'listingDetails': {
+                'id': None,
+                'description': None,
+                'ratings': None,
+                'prices': {
+                    'isFinalPrice': None,
+                    'public': None,
+                    'dealer': None,
+                },
+                'price': None,
+                'vehicle': None,
+                'location': None,
+                'seller': None,
+                'warranty': None,
+                'warrantyExists': None,
+            },
+        }
+    }
+}
+
+JSON_TXT_REMOVE = {
+    'props': {
+        'pageProps': {
+            'listingDetails': {
+                'vehicle': {
+                    'rawData': {
+                        'equipment': None,
+                    }
+                },
+                'seller': {
+                    'logo': None
+                },
+            }
+        }
+    }
+}

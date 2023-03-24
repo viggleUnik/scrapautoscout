@@ -664,6 +664,10 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
                   f'success rate: {n_extracted/n_attempted * 100:.1f}%')
         pb.update(len(ids_part))
 
+    pb.display()
+    pb.close()
+    log.info('extract_json_txt_for_known_ids(): Done.')
+
 
 
 def read_ids_json_files_from_cache():

@@ -1,3 +1,4 @@
+import copy
 import os.path
 import requests
 from bs4 import BeautifulSoup
@@ -14,7 +15,8 @@ from tqdm import tqdm
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
-from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg, update_nested_dict, \
+    remove_none_from_dict
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -78,13 +80,13 @@ def send_get_request(url, headers, proxies=None, timeout=5):
     try:
         page = requests.get(url=url, headers=headers, proxies=proxies, timeout=timeout)
         if page.status_code == 200:
-            return BeautifulSoup(page.content, 'html.parser')
+            return {'status': 200, 'content': BeautifulSoup(page.content, 'html.parser')}
         else:
             log.debug(f'Failed to get content for url: {url} {msg_proxy} with status: {page.status_code}, reason: {page.reason}')
-            return None
+            return {'status': page.status_code, 'content': None}
     except requests.exceptions.RequestException as e:
         log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_error_msg(e)}')
-        return None
+        return {'status': None, 'content': None}
 
 
 def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> List[Dict]:
@@ -149,10 +151,15 @@ def get_contents_from_urls(
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
         for kwargs, result in zip(list_kwargs, results):
+            status, content = result['status'], result['content']
             url = kwargs['url']
-            if result is not None:
+            if content is not None:
                 # if request was successful, keep the result and remove the URL from the list
-                contents[url] = result
+                contents[url] = content
+                urls.remove(url)
+            elif status is not None and status != 200:
+                # if the request was succesfull, but the site didn't return content for the given URL
+                # (e.g. error: 404, 410), then just remove the URL to never try it again
                 urls.remove(url)
             else:
                 # if request failed, remove the proxy that was used for this request
@@ -500,13 +507,41 @@ def get_content_for_article_ids(
 def get_json_txt_from_article(article_bs: BeautifulSoup) -> str:
     """ Extract json text from the BeautifulSoup object of an article"""
     json_txt = article_bs.select_one('script[id="__NEXT_DATA__"]').text
-    json_txt = truncate_useless_from_json_text(json_txt)
+    json_txt = truncate_useless_data_from_json_text(json_txt)
     return json_txt
 
 
-def truncate_useless_from_json_text(json_txt) -> str:
-    # TODO: truncate unused info: parse to dictionary, drop useless elements, dumps dict as json txt json.dumps(...,indent=2)
-    return json_txt
+def transform_vehicle_equipment(obj: Dict):
+    keys = ['comfortAndConvenience', 'entertainmentAndMedia', 'extras', 'safetyAndSecurity']
+    for k in keys:
+        elems = obj['props']['pageProps']['listingDetails']['vehicle'].get('equipment', {}).get(k, [])
+        if len(elems) > 0:
+            obj['props']['pageProps']['listingDetails']['vehicle']['equipment'][k] = [e['id'] for e in elems]
+    return obj
+
+
+def truncate_useless_data_from_json_text(json_txt) -> str:
+    # This strips off unused data from json text, decreasing the size of it by ~87%, (~7.5x times smaller)
+
+    # load json text as dictionary object
+    obj = json.loads(json_txt)
+
+    # copy the structure of the elements we want to keep
+    truncated_obj = copy.deepcopy(config.JSON_TXT_KEEP)
+
+    # override the specified keys with values from obj, truncated size = ~25% of original text size (~4x times smaller)
+    update_nested_dict(truncated_obj, obj)
+
+    # override some keys with None, truncated size = ~15% of original text size (~7x times smaller)
+    update_nested_dict(truncated_obj, copy.deepcopy(config.JSON_TXT_REMOVE))
+
+    # remove keys with null/none values, this truncates an additional ~2% of text size
+    remove_none_from_dict(truncated_obj)
+
+    # transform some elements for smaller size, truncated size = ~13% of original text size (~7.5x times smaller)
+    transform_vehicle_equipment(truncated_obj)
+
+    return json.dumps(truncated_obj)
 
 
 def load_all_known_ids_local() -> List[str]:
@@ -602,11 +637,13 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
 
 
 def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 1000):
+    log.info('extract_json_txt_for_known_ids(): Starting...')
+
     ids = find_ids_left_to_extract(location)
     n_attempted = 0
     n_extracted = 0
     n_init_ids = len(ids)
-    pb = tqdm(total=n_init_ids, unit='ID', mininterval=30, miniters=100, leave=False)
+    pb = tqdm(total=n_init_ids, unit='ID', mininterval=30, miniters=100)
 
     while len(ids) > 0:
         ids_part, ids = ids[:chunk_size], ids[chunk_size:]
@@ -626,6 +663,10 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
         log.debug(f'{n_attempted/n_init_ids * 100:.1f}% of IDs attempted, '
                   f'success rate: {n_extracted/n_attempted * 100:.1f}%')
         pb.update(len(ids_part))
+
+    pb.display()
+    pb.close()
+    log.info('extract_json_txt_for_known_ids(): Done.')
 
 
 

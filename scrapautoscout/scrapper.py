@@ -643,7 +643,7 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
     n_attempted = 0
     n_extracted = 0
     n_init_ids = len(ids)
-    pb = tqdm(total=n_init_ids, unit='ID', mininterval=30, miniters=100, leave=False)
+    pb = tqdm(total=n_init_ids, unit='ID', mininterval=30, miniters=100)
 
     while len(ids) > 0:
         ids_part, ids = ids[:chunk_size], ids[chunk_size:]

@@ -80,13 +80,13 @@ def send_get_request(url, headers, proxies=None, timeout=5):
     try:
         page = requests.get(url=url, headers=headers, proxies=proxies, timeout=timeout)
         if page.status_code == 200:
-            return BeautifulSoup(page.content, 'html.parser')
+            return {'status': 200, 'content': BeautifulSoup(page.content, 'html.parser')}
         else:
             log.debug(f'Failed to get content for url: {url} {msg_proxy} with status: {page.status_code}, reason: {page.reason}')
-            return None
+            return {'status': page.status_code, 'content': None}
     except requests.exceptions.RequestException as e:
         log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_error_msg(e)}')
-        return None
+        return {'status': None, 'content': None}
 
 
 def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> List[Dict]:
@@ -151,10 +151,15 @@ def get_contents_from_urls(
             results = executor.map(lambda p: send_get_request(**p), list_kwargs)
 
         for kwargs, result in zip(list_kwargs, results):
+            status, content = result['status'], result['content']
             url = kwargs['url']
-            if result is not None:
+            if content is not None:
                 # if request was successful, keep the result and remove the URL from the list
-                contents[url] = result
+                contents[url] = content
+                urls.remove(url)
+            elif status is not None and status != 200:
+                # if the request was succesfull, but the site didn't return content for the given URL
+                # (e.g. error: 404, 410), then just remove the URL to never try it again
                 urls.remove(url)
             else:
                 # if request failed, remove the proxy that was used for this request
@@ -632,6 +637,8 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
 
 
 def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 1000):
+    log.info('extract_json_txt_for_known_ids(): Starting...')
+
     ids = find_ids_left_to_extract(location)
     n_attempted = 0
     n_extracted = 0

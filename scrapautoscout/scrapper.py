@@ -315,7 +315,7 @@ def get_json_data_from_article(
         soup = BeautifulSoup(page.content, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
     except requests.exceptions.RequestException as e:
-        log.debug(f'Failed to get json data for {article_url} with error: {trunc_error_msg(e)}')
+        log.debug(f'Failed to get json data for {article_url} with error: {trunc_msg(e)}')
 
     return json_text, status_code
 

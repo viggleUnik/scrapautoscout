@@ -85,7 +85,7 @@ def send_get_request(url, headers, proxies=None, timeout=5):
             log.debug(f'Failed to get content for url: {url} {msg_proxy} with status: {page.status_code}, reason: {page.reason}')
             return {'status': page.status_code, 'content': None}
     except requests.exceptions.RequestException as e:
-        log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_error_msg(e)}')
+        log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_msg(e)}')
         return {'status': None, 'content': None}
 
 

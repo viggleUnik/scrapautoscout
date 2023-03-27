@@ -15,7 +15,8 @@ def run():
       - find all article IDs
       - find which IDs are left to be extracted
       - extract json txt to files
-    Execution speed: ~9 IDs/sec, ETA: 2.5days for 2M IDs (based on a run of 14975 IDs done in 28min)
+    Execution speed: ~9 IDs/sec, ETA: 2.5days for 2M IDs (based on a run of 14,975 IDs done in 28min)
+    Disk space: 0.01Mb/article, est: 20.6 Gb for 2M IDs (481.4 MB on disk for 46,581 items)
     """
 
     makers = random.sample(config.MAKERS, len(config.MAKERS))

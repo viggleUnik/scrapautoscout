@@ -577,6 +577,18 @@ def truncate_useless_data_from_json_text(json_txt) -> str:
     return json.dumps(truncated_obj)
 
 
+def find_all_json_files_with_ids(location: str = 'local'):
+    if location == 'local':
+        files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
+        files_json = [os.path.basename(f).replace('.json', '') for f in files_json]
+        return files_json
+    elif location == 's3':
+        # TODO:
+        raise NotImplementedError()
+    else:
+        raise ValueError(f'location={location} not recognized')
+
+
 def load_all_known_ids_local() -> List[str]:
     files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
     all_ids = []
@@ -641,8 +653,11 @@ def find_ids_left_to_extract(location: str = 'local'):
     else:
         raise ValueError(f'location={location} not recognized')
 
-    ids_left_to_extract = list(set(ids_known).difference(set(ids_extracted)))
-    log.debug(f'found {len(ids_left_to_extract)} IDs left to extract')
+    ids_known = set(ids_known)
+    ids_extracted = set(ids_extracted)
+    ids_left_to_extract = list(ids_known.difference(ids_extracted))
+    log.debug(f'found {len(ids_left_to_extract)} IDs left to extract '
+              f'({len(ids_known)} known, {len(ids_extracted)} extracted)')
 
     return ids_left_to_extract
 

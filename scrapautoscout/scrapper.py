@@ -89,22 +89,30 @@ def send_get_request(url, headers, proxies=None, timeout=5):
         return {'status': None, 'content': None}
 
 
-def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> List[Dict]:
+def get_request_params_from_url(url: str, use_header=True, use_proxy=True, timeout=5):
     global PROXIES
+
+    params = {'url': url, 'timeout': timeout}
+
+    if use_header:
+        params['headers'] = {'User-Agent': random.choice(config.USER_AGENTS)}
+
+    if use_proxy:
+        # if using proxy, enrich the request parameters with a proxy
+        while not len(PROXIES) > 0:
+            PROXIES = get_valid_proxies_multithreading()
+
+        proxy_ip = random.choice(PROXIES)
+        params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
+
+    return params
+
+
+def get_request_params_from_urls(urls: List[str], use_header=True, use_proxy=True, timeout=5) -> List[Dict]:
 
     list_request_params = []
     for url in urls:
-        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
-        params = {'url': url, 'headers': headers, 'timeout': timeout}
-
-        if use_proxy:
-            # if using proxy, enrich the request parameters with a proxy
-            while not len(PROXIES) > 0:
-                PROXIES = get_valid_proxies_multithreading()
-
-            proxy_ip = random.choice(PROXIES)
-            params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
-
+        params = get_request_params_from_url(url, use_header=use_header, use_proxy=use_proxy, timeout=timeout)
         list_request_params.append(params)
 
     return list_request_params

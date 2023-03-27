@@ -45,8 +45,8 @@ MAX_PAGES = 20
 MAX_RESULTS = 400
 MAX_RESULTS_PER_PAGE = 20
 
+# defaults for search
 ADAGE = 365  # maximum age of ads to extract
-# MAKERS = ['audi', 'bmw', 'ford', 'mercedes-benz', 'opel', 'volkswagen', 'renault']
 MAKERS = [
     'Audi', 'BMW', 'Ford', 'Mercedes-Benz', 'Opel', 'Renault', 'Volkswagen',
     '9ff', 'Abarth', 'AC', 'ACM', 'Acura', 'Aixam', 'Alfa Romeo', 'Alpina', 'Alpine', 'Amphicar', 'Ariel Motor',
@@ -54,7 +54,7 @@ MAKERS = [
     'Bentley', 'Bollore', 'Borgward', 'Brilliance', 'Bugatti', 'Buick', 'BYD', 'Cadillac', 'Caravans-Wohnm',
     'Casalini', 'Caterham', 'Changhe', 'Chatenet', 'Chery', 'Chevrolet', 'Chrysler', 'Citroen', 'CityEL', 'CMC',
     'Corvette', 'Courb', 'Cupra', 'Dacia', 'Daewoo', 'DAF', 'Daihatsu', 'Daimler', 'Dangel', 'De la Chapelle',
-    'De Tomaso', 'Derways', 'DFSK', 'Dodge', 'Donkervoort', 'DR Motor', 'DS Automobiles', 'Dutton', 'e.GO',
+    'De Tomaso', 'DFSK', 'Dodge', 'Donkervoort', 'DR Motor', 'DS Automobiles', 'Dutton', 'e.GO',
     'Estrima', 'Ferrari', 'Fiat', 'FISKER', 'Gac Gonow', 'Galloper', 'GAZ', 'Geely', 'GEM', 'GEMBALLA',
     'Genesis', 'Gillet', 'Giotti Victoria', 'GMC', 'Great Wall', 'Grecav', 'Haima', 'Hamann', 'Honda', 'HUMMER',
     'Hurtan', 'Hyundai', 'Infiniti', 'Innocenti', 'Iso Rivolta', 'Isuzu', 'Iveco', 'IZH', 'Jaguar', 'Jeep',
@@ -68,23 +68,6 @@ MAKERS = [
     'Suzuki', 'TagAZ', 'Talbot', 'Tasso', 'Tata', 'Tazzari EV', 'TECHART', 'Tesla', 'Town Life', 'Toyota',
     'Trabant', 'Triumph', 'Trucks-Lkw', 'TVR', 'UAZ', 'VAZ', 'VEM', 'Volvo', 'Vortex', 'Wallys', 'Wartburg',
     'Westfield', 'Wiesmann', 'Zastava', 'ZAZ', 'Zhidou', 'Zotye', 'Others'
-]
-YEARS = list(range(1992, 2023))
-PRICE_RANGES = [
-    [2_000, 5_000],
-    [5_001, 10_000],
-    [10_001, 13_000],
-    [13_001, 16_000],
-    [16_001, 20_000],
-    [20_001, 25_000],
-    [25_001, 30_000],
-    [30_001, 35_000],
-    [35_001, 40_000],
-    [40_001, 50_000],
-    [50_001, 60_000],
-    [60_001, 80_000],
-    [80_001, 100_000],
-    [100_001, 9_999_999],
 ]
 YEAR_RANGE = (1980, 2023)
 PRICE_RANGE = (500, 1_000_000)

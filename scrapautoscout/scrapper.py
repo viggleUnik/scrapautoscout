@@ -374,8 +374,9 @@ def get_all_article_ids(
         adage: int = config.ADAGE,
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
-        price_step = 500,
+        price_step: int = 500,
         cache_location: str = 'local',
+        n_too_many: int = 1_000_000,
 ):
     """
     Get all car ids and save them to cache folder
@@ -386,6 +387,7 @@ def get_all_article_ids(
     price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
 
     all_ids = []
+    retrieved_cache = find_all_json_files_with_ids(cache_location)
     retrieved_counts = {}
     n_retrievals = 0
 
@@ -411,21 +413,21 @@ def get_all_article_ids(
         if max_retrievals is not None and n_retrievals > max_retrievals:
             break
 
-        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
-
         pars = stack.pop()
         pars_as_key = json.dumps(pars)
+        search_url = compose_search_url(**pars)
+        search_url_as_hash = get_hash_from_string(search_url)
 
         # check if this set of parameters was retrieved before
         n_results = retrieved_counts.get(pars_as_key, None)
-        if n_results is not None:
+        if n_results is not None or search_url_as_hash in retrieved_cache:
             continue  # if it was already retrieved, then skip to not repeat the same work
 
         # check how many results are found when searching with this set for parameters
-        search_url = compose_search_url(**pars)
         n_results = get_numbers_of_articles_from_url(search_url)
         retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
-        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
+        pars_formatted = ' | '.join([f'{k}={v}' for k, v in pars.items()])
+        log.info(f'Filter: {pars_formatted}: {n_results} results found.')
 
         if n_results <= 0:
             # if -1 (error) or 0 (zero results found), then nothing to do, go to next
@@ -435,6 +437,12 @@ def get_all_article_ids(
             ids = get_all_ids_for_search_url(search_url, n_results)
             all_ids.extend(ids)
             n_retrievals += 1
+        elif n_results > n_too_many:
+            # if too many results, most probably an incorrect url with filters was provided (e.g. non-existent maker)
+            # the site returns all articles (~1.8M) for an incorrect search url
+            log.warning(f'Found {n_results} results, which is too many to be narrowed with year and price, '
+                        f'probably an incorrect URL was requested, will skip this set of parameters: \n {pars_as_key}')
+            continue
         else:
             # if more than max results, there are too many results, we want to narrow the filter and break down
             # the set of results with additional parameters if possible

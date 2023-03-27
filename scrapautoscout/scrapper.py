@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
-from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg, update_nested_dict, \
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_msg, update_nested_dict, \
     remove_none_from_dict
 
 log = logging.getLogger(os.path.basename(__file__))

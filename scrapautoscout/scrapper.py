@@ -15,17 +15,12 @@ from tqdm import tqdm
 
 from scrapautoscout import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
-from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_error_msg, update_nested_dict, \
+from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_msg, update_nested_dict, \
     remove_none_from_dict
 
 log = logging.getLogger(os.path.basename(__file__))
 
 PROXIES = []
-
-
-# TODO: extract all IDs
-# - load existing hashes of search params
-# -
 
 
 def compose_search_url(
@@ -85,26 +80,34 @@ def send_get_request(url, headers, proxies=None, timeout=5):
             log.debug(f'Failed to get content for url: {url} {msg_proxy} with status: {page.status_code}, reason: {page.reason}')
             return {'status': page.status_code, 'content': None}
     except requests.exceptions.RequestException as e:
-        log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_error_msg(e)}')
+        log.debug(f'Failed to get content for url: {url} {msg_proxy} with error: {trunc_msg(e)}')
         return {'status': None, 'content': None}
 
 
-def get_request_params_from_urls(urls: List[str], use_proxy=True, timeout=5) -> List[Dict]:
+def get_request_params_from_url(url: str, use_header=True, use_proxy=True, timeout=5):
     global PROXIES
+
+    params = {'url': url, 'timeout': timeout}
+
+    if use_header:
+        params['headers'] = {'User-Agent': random.choice(config.USER_AGENTS)}
+
+    if use_proxy:
+        # if using proxy, enrich the request parameters with a proxy
+        while not len(PROXIES) > 0:
+            PROXIES = get_valid_proxies_multithreading()
+
+        proxy_ip = random.choice(PROXIES)
+        params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
+
+    return params
+
+
+def get_request_params_from_urls(urls: List[str], use_header=True, use_proxy=True, timeout=5) -> List[Dict]:
 
     list_request_params = []
     for url in urls:
-        headers = {'User-Agent': random.choice(config.USER_AGENTS)}
-        params = {'url': url, 'headers': headers, 'timeout': timeout}
-
-        if use_proxy:
-            # if using proxy, enrich the request parameters with a proxy
-            while not len(PROXIES) > 0:
-                PROXIES = get_valid_proxies_multithreading()
-
-            proxy_ip = random.choice(PROXIES)
-            params['proxies'] = {'http': proxy_ip, 'https': proxy_ip}
-
+        params = get_request_params_from_url(url, use_header=use_header, use_proxy=use_proxy, timeout=timeout)
         list_request_params.append(params)
 
     return list_request_params
@@ -238,16 +241,6 @@ def get_article_ids_from_pages(pages: List[BeautifulSoup], n_articles_max: int =
 
     return article_ids
 
-# audi
-# ...
-# bmw
-#  - 2023
-#     - 20230323
-#     - 20230301
-#  - 2022
-#  - ...
-#  - 1980
-
 
 def get_all_ids_for_search_url(
         search_url: str,
@@ -307,30 +300,47 @@ def get_json_data_from_article(
         soup = BeautifulSoup(page.content, 'html.parser')
         json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
     except requests.exceptions.RequestException as e:
-        log.debug(f'Failed to get json data for {article_url} with error: {trunc_error_msg(e)}')
+        log.debug(f'Failed to get json data for {article_url} with error: {trunc_msg(e)}')
 
     return json_text, status_code
 
 
-def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
-    time.sleep(random.randint(1, 3))  # sleep between requests because the requests are sent directly, not via proxies
+def get_numbers_of_articles_from_url(url: str, max_trials=7, use_proxy=True, max_trials_via_proxy=5) -> int:
     n_trials = 0
+
     while n_trials < max_trials:
-        try:
-            user_agent = random.choice(config.USER_AGENTS)
-            page = requests.get(url, headers={'User-Agent': user_agent})
-            soup = BeautifulSoup(page.content, 'html.parser')
-            json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
+        params = get_request_params_from_url(url=url, use_proxy=use_proxy)
+        result = send_get_request(**params)
+        status, content = result['status'], result['content']
+
+        if content is not None:
+            # if request was successful, return the number of results for the search url
+            json_text = content.select_one('script[id="__NEXT_DATA__"]').text
             obj = json.loads(json_text)
             n_offers = obj['props']['pageProps']['numberOfResults']
             return int(n_offers)
-        except requests.exceptions.RequestException as e:
-            log.error(f'Failed to get the number of offers for url {url} on attempt={n_trials} with error: '
-                      f'{trunc_error_msg(e)}')
-            n_trials += 1
-            time.sleep(n_trials * sleep_after_fail)  # sleep after failed trial, each time by more
+        elif status is not None and status != 200:
+            # if the request was succesfull, but the site didn't return content for the given URL
+            # (e.g. error: 404, 410), return -1 (error, URL must be incorrect, non-existent)
+            return -1
+        else:
+            # if request failed, remove the proxy that was used for this request
+            if params.get('proxies') is not None:
+                try:
+                    proxy_ip = list(params.get('proxies').values())[0]
+                    PROXIES.remove(proxy_ip)
+                except ValueError as e:
+                    pass
 
-    log.error(f'Failed to get the number of offers for url {url} after {max_trials} attempts.')
+        n_trials += 1
+
+        # if it failed too many times via proxy, then try without proxy
+        if use_proxy and n_trials >= max_trials_via_proxy:
+            use_proxy = False
+            time.sleep(random.randint(1, 3))  # sleep between requests when requests are sent directly, not via proxies
+
+    log.error(f'Failed to extract the number of results for the search url: {url} after {max_trials} attempts.')
+
     return -1
 
 
@@ -349,8 +359,9 @@ def get_all_article_ids(
         adage: int = config.ADAGE,
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
-        price_step = 500,
+        price_step: int = 500,
         cache_location: str = 'local',
+        n_too_many: int = 1_000_000,
 ):
     """
     Get all car ids and save them to cache folder
@@ -361,6 +372,7 @@ def get_all_article_ids(
     price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
 
     all_ids = []
+    retrieved_cache = find_all_json_files_with_ids(cache_location)
     retrieved_counts = {}
     n_retrievals = 0
 
@@ -386,21 +398,21 @@ def get_all_article_ids(
         if max_retrievals is not None and n_retrievals > max_retrievals:
             break
 
-        # log.debug('\nstack:\n' + json.dumps(stack, indent=2))
-
         pars = stack.pop()
         pars_as_key = json.dumps(pars)
+        search_url = compose_search_url(**pars)
+        search_url_as_hash = get_hash_from_string(search_url)
 
         # check if this set of parameters was retrieved before
         n_results = retrieved_counts.get(pars_as_key, None)
-        if n_results is not None:
+        if n_results is not None or search_url_as_hash in retrieved_cache:
             continue  # if it was already retrieved, then skip to not repeat the same work
 
         # check how many results are found when searching with this set for parameters
-        search_url = compose_search_url(**pars)
         n_results = get_numbers_of_articles_from_url(search_url)
         retrieved_counts[pars_as_key] = n_results  # record the number of results for this set of parameters
-        log.debug('\nretrieved_counts:\n' + json.dumps(retrieved_counts, indent=2))
+        pars_formatted = ' | '.join([f'{k}={v}' for k, v in pars.items()])
+        log.info(f'Filter: {pars_formatted}: {n_results} results found.')
 
         if n_results <= 0:
             # if -1 (error) or 0 (zero results found), then nothing to do, go to next
@@ -410,6 +422,12 @@ def get_all_article_ids(
             ids = get_all_ids_for_search_url(search_url, n_results)
             all_ids.extend(ids)
             n_retrievals += 1
+        elif n_results > n_too_many:
+            # if too many results, most probably an incorrect url with filters was provided (e.g. non-existent maker)
+            # the site returns all articles (~1.8M) for an incorrect search url
+            log.warning(f'Found {n_results} results, which is too many to be narrowed with year and price, '
+                        f'probably an incorrect URL was requested, will skip this set of parameters: \n {pars_as_key}')
+            continue
         else:
             # if more than max results, there are too many results, we want to narrow the filter and break down
             # the set of results with additional parameters if possible
@@ -544,6 +562,18 @@ def truncate_useless_data_from_json_text(json_txt) -> str:
     return json.dumps(truncated_obj)
 
 
+def find_all_json_files_with_ids(location: str = 'local'):
+    if location == 'local':
+        files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
+        files_json = [os.path.basename(f).replace('.json', '') for f in files_json]
+        return files_json
+    elif location == 's3':
+        # TODO:
+        raise NotImplementedError()
+    else:
+        raise ValueError(f'location={location} not recognized')
+
+
 def load_all_known_ids_local() -> List[str]:
     files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
     all_ids = []
@@ -608,8 +638,11 @@ def find_ids_left_to_extract(location: str = 'local'):
     else:
         raise ValueError(f'location={location} not recognized')
 
-    ids_left_to_extract = list(set(ids_known).difference(set(ids_extracted)))
-    log.debug(f'found {len(ids_left_to_extract)} IDs left to extract')
+    ids_known = set(ids_known)
+    ids_extracted = set(ids_extracted)
+    ids_left_to_extract = list(ids_known.difference(ids_extracted))
+    log.debug(f'found {len(ids_left_to_extract)} IDs left to extract '
+              f'({len(ids_known)} known, {len(ids_extracted)} extracted)')
 
     return ids_left_to_extract
 
@@ -668,156 +701,3 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
     pb.close()
     log.info('extract_json_txt_for_known_ids(): Done.')
 
-
-
-def read_ids_json_files_from_cache():
-    """Get car ids from cached json files"""
-
-    path_to_json = f'{config.DIR_CACHE}/{config.FOLDER_IDS}/'
-    json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
-
-    dir_get_content = f'{config.DIR_CACHE}/get_content_id'
-    os.makedirs(dir_get_content, exist_ok=True)
-
-    # file browsing in 'cache/ids'
-    for jfile in json_files:
-        with open(path_to_json + jfile, 'r') as file:
-            list_ids = json.load(file)
-
-        # creating directory name for each given json file with ids
-        dir_name = jfile.replace('.json', '')
-        folder_path = os.path.join(dir_get_content, dir_name)
-        create_folder_with_jsons_ids(list_ids, folder_path)
-
-
-def create_folder_with_jsons_ids(car_ids: List[str], folder_path: str):
-    """Get car information from site and create folder with jsons"""
-
-    os.makedirs(folder_path, exist_ok=True)
-
-    # get valid proxies for scrapping
-    proxies_valid_ips = get_valid_proxies_multithreading()
-
-    for id in car_ids:
-        id_file_name = f'{folder_path}/{id}.json'
-        # check if id_file exists in folder
-        if os.path.exists(id_file_name):
-            log.info(f'exists {id}.json')
-            continue
-        else:
-            found = False
-            request_try = 0
-            while not found:
-                # case proxies list is empty, we go further only if we have at least 3 valid proxies
-                if len(proxies_valid_ips) == 0:
-                    min_valid = False
-                    while not min_valid:
-                        proxies_valid_ips = get_valid_proxies_multithreading()
-                        if len(proxies_valid_ips) > 3:
-                            min_valid = True
-
-                # choose randon proxy from list
-                proxy_ip = random.choice(proxies_valid_ips)
-                proxy = {'http': proxy_ip, 'https': proxy_ip}
-                print(f'proxy {proxy}')
-
-                # choose random user agent from stored USER_AGENTS
-                user_agent = random.choice(config.USER_AGENTS)
-                json_text, status_code = get_json_data_from_article(
-                    headers={'User-Agent': user_agent},
-                    article_id=id,
-                    proxy=proxy)
-
-                # check if request was successful
-                if json_text is not None:
-                    # create file with car info
-                    with open(id_file_name, 'w') as f:
-                        json.dump(json_text, f, indent=2)
-                    print(f'SUCCESS!')
-                    found = True
-                else:
-                    if request_try == 3:
-                        found = True
-                        # create an empty json for further verification
-                        with open(id_file_name, 'w') as f:
-                            json.dump('{}', f, indent=2)
-                        request_try = 0
-
-                    elif request_try < 3:
-                        request_try += 1
-                        proxies_valid_ips.remove(proxy_ip)
-
-
-def s3_read_ids_json_files_from_cache():
-    path_to_json = f'{config.DIR_CACHE}/ids'
-    json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('.json')]
-
-    # Create a session using the default profile
-    session = boto3.Session(profile_name='default')
-
-    # file browsing in 'cache/ids'
-    for jfile in json_files:
-        with open(f'{path_to_json}/{jfile}', 'r') as file:
-            list_ids = json.load(file)
-
-        # creating s3 directory name for each given json file with ids
-        dir_name = jfile.replace('.json', '')
-        s3_create_folder_with_jsons_ids(car_ids=list_ids, folder_path=dir_name, bucket_name=config.BUCKET,
-                                        boto_session=session)
-
-
-def s3_create_folder_with_jsons_ids(car_ids: List[str], folder_path: str, bucket_name: str,
-                                    boto_session: boto3.session.Session):
-    # Get car information from site and create folder with jsons
-
-    # Use the session to create an S3 client
-    client = boto_session.client('s3')
-    folder_response = client.list_objects(Bucket=bucket_name, Prefix=folder_path)
-
-    if 'Contents' not in folder_response:
-        # get valid proxies for scrapping
-        proxies_valid_ips = get_valid_proxies_multithreading()
-
-        for car_id in car_ids:
-            found = False
-            request_try = 0
-
-            while not found:
-                # case proxies list is empty, we go further only if we have at least 3 valid proxies
-                if len(proxies_valid_ips) == 0:
-                    min_valid = False
-                    while not min_valid:
-                        proxies_valid_ips = get_valid_proxies_multithreading()
-                        if len(proxies_valid_ips) > 3:
-                            min_valid = True
-
-                # choose randon proxy from list
-                proxy_ip = random.choice(proxies_valid_ips)
-                proxy = {'http': proxy_ip, 'https': proxy_ip}
-
-                # choose random user agent from stored USER_AGENTS
-                user_agent = random.choice(config.USER_AGENTS)
-                json_text, status_code = get_json_data_from_article(
-                    headers={'User-Agent': user_agent},
-                    article_id=car_id,
-                    proxy=proxy)
-
-                # check if request was successful
-                if json_text is not None:
-                    # create file with car info
-                    key_file_name = f'{folder_path}/{car_id}.json'
-                    client.put_object(
-                        Bucket=bucket_name,
-                        Key=key_file_name,
-                        Body=json_text
-                    )
-                    found = True
-                elif status_code == 404:
-                    break
-                else:
-                    # try with another proxy, remove the current bad proxy
-                    if request_try < 3:
-                        request_try += 1
-                        proxies_valid_ips.remove(proxy_ip)
-                    else:
-                        break  # give up, exit while loop

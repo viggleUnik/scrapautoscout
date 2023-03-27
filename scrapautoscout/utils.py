@@ -22,8 +22,11 @@ def get_hash_from_string(s: str) -> str:
     return hash_str
 
 
-def trunc_error_msg(e, max_chars=300):
-    return (str(e)[:max_chars] + '...') if len(str(e)) > max_chars else str(e)
+def trunc_msg(e, max_chars=300, from_end=True):
+    if from_end:
+        return (str(e)[:max_chars] + ' ...[truncated]') if len(str(e)) > max_chars else str(e)
+    else:
+        return ('[truncated]... ' + str(e)[-max_chars:]) if len(str(e)) > max_chars else str(e)
 
 
 def update_nested_dict(d, u, only_existing_keys=True):

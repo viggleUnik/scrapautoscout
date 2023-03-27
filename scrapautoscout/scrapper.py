@@ -320,25 +320,42 @@ def get_json_data_from_article(
     return json_text, status_code
 
 
-def get_numbers_of_articles_from_url(url: str, max_trials=5, sleep_after_fail=30) -> int:
-    time.sleep(random.randint(1, 3))  # sleep between requests because the requests are sent directly, not via proxies
+def get_numbers_of_articles_from_url(url: str, max_trials=7, use_proxy=True, max_trials_via_proxy=5) -> int:
     n_trials = 0
+
     while n_trials < max_trials:
-        try:
-            user_agent = random.choice(config.USER_AGENTS)
-            page = requests.get(url, headers={'User-Agent': user_agent})
-            soup = BeautifulSoup(page.content, 'html.parser')
-            json_text = soup.select_one('script[id="__NEXT_DATA__"]').text
+        params = get_request_params_from_url(url=url, use_proxy=use_proxy)
+        result = send_get_request(**params)
+        status, content = result['status'], result['content']
+
+        if content is not None:
+            # if request was successful, return the number of results for the search url
+            json_text = content.select_one('script[id="__NEXT_DATA__"]').text
             obj = json.loads(json_text)
             n_offers = obj['props']['pageProps']['numberOfResults']
             return int(n_offers)
-        except requests.exceptions.RequestException as e:
-            log.error(f'Failed to get the number of offers for url {url} on attempt={n_trials} with error: '
-                      f'{trunc_error_msg(e)}')
-            n_trials += 1
-            time.sleep(n_trials * sleep_after_fail)  # sleep after failed trial, each time by more
+        elif status is not None and status != 200:
+            # if the request was succesfull, but the site didn't return content for the given URL
+            # (e.g. error: 404, 410), return -1 (error, URL must be incorrect, non-existent)
+            return -1
+        else:
+            # if request failed, remove the proxy that was used for this request
+            if params.get('proxies') is not None:
+                try:
+                    proxy_ip = list(params.get('proxies').values())[0]
+                    PROXIES.remove(proxy_ip)
+                except ValueError as e:
+                    pass
 
-    log.error(f'Failed to get the number of offers for url {url} after {max_trials} attempts.')
+        n_trials += 1
+
+        # if it failed too many times via proxy, then try without proxy
+        if use_proxy and n_trials >= max_trials_via_proxy:
+            use_proxy = False
+            time.sleep(random.randint(1, 3))  # sleep between requests when requests are sent directly, not via proxies
+
+    log.error(f'Failed to extract the number of results for the search url: {url} after {max_trials} attempts.')
+
     return -1
 
 

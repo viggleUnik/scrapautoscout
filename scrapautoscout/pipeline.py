@@ -15,7 +15,7 @@ def run():
       - find all article IDs
       - find which IDs are left to be extracted
       - extract json txt to files
-    Execution speed: 14975 IDs in 28min (~9IDs/sec, 2.5days for 2M IDs)
+    Execution speed: ~9 IDs/sec, ETA: 2.5days for 2M IDs (based on a run of 14975 IDs done in 28min)
     """
 
     makers = random.sample(config.MAKERS, len(config.MAKERS))

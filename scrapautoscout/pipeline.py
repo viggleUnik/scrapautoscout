@@ -1,15 +1,13 @@
 import os
-import random
 import logging
+import argparse
+import json
 
-import config
+from scrapautoscout.config import config
 from scrapautoscout.scrapper import get_all_article_ids, find_ids_left_to_extract, main_extract_json_txt_for_all_known_ids
 
 
-log = logging.getLogger(os.path.basename(__file__))
-
-
-def run():
+def run(**kwargs):
     """
     Full pipeline to extract articles, which includes:
       - find all article IDs
@@ -19,21 +17,39 @@ def run():
     Disk space: 0.01Mb/article, est: 20.6 Gb for 2M IDs (481.4 MB on disk for 46,581 items)
     """
 
-    makers = random.sample(config.MAKERS, len(config.MAKERS))
-    makers = ['Bugatti']
+    config.setup(**kwargs)
 
-    for i, maker in enumerate(makers):
-        log.debug(f'maker={maker} ({i} of {len(makers)})')
+    log = logging.getLogger(os.path.basename(__file__))
+    log.info(f'Running {os.path.basename(__file__)}, with parameters: \n' + json.dumps(vars(args), indent=2))
 
-        log.debug(f'start get_all_article_ids() ...')
+    for i, maker in enumerate(config.MAKERS):
+        log.info(f'Extract maker={maker} ({i+1} of {len(config.MAKERS)})...')
+
+        log.info('Get all article IDs...')
         get_all_article_ids(makers=[maker])
 
-        log.debug(f'find_ids_left_to_extract() ...')
+        log.info('Find article IDs left to extract...')
         find_ids_left_to_extract(location='local')
 
-        log.debug(f'extract_json_txt_for_known_ids() ...')
+        log.info('Extract json data of articles...')
         main_extract_json_txt_for_all_known_ids(location='local', chunk_size=100)
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--LOCATION', help="'local' or 's3'")
+    parser.add_argument('--DIR_CACHE', help="Where to save artifacts. Default: 'cache' (relative to project root)")
+    parser.add_argument('--AWS_PROFILE_NAME', help='AWS profile name')
+    parser.add_argument('--AWS_S3_BUCKET', help='AWS S3 bucket')
+    parser.add_argument('--MAKERS', nargs='+', help='List of makers delimited by space')
+    parser.add_argument('--LOGS_LEVEL', help="Log level, e.g. 'debug', 'info', 'error'")
+    args = parser.parse_args()
+    # args.MAKERS = ['Porsche']
+
+    run(**vars(args))
+
+    # example of how to run locally:
+    # python3 -m scrapautoscout.pipeline
+
+    # example of how to run on AWS EC2 in background, without writing to nohup.out:
+    # nohup python3 -m scrapautoscout.pipeline >/dev/null 2>&1

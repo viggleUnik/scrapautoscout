@@ -1,6 +1,9 @@
 import unittest
 
 from scrapautoscout.scrapper import find_ids_left_to_extract
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_find_ids_left_to_extract(unittest.TestCase):

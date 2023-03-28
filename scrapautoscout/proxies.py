@@ -9,7 +9,7 @@ import logging
 import time
 import json
 
-from scrapautoscout import config
+from scrapautoscout.config import config
 
 log = logging.getLogger(os.path.basename(__file__))
 

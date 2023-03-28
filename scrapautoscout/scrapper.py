@@ -13,7 +13,7 @@ import concurrent.futures
 import glob
 from tqdm import tqdm
 
-from scrapautoscout import config
+from scrapautoscout.config import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_msg, update_nested_dict, \
     remove_none_from_dict
@@ -247,8 +247,8 @@ def get_all_ids_for_search_url(
         n_search_results: int = None,
         cache_location: str = 'local',
     ):
-    # Create a session using the default profile
-    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+
+    # TODO: cache_folder depends on cache location
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
@@ -390,9 +390,6 @@ def get_all_article_ids(
         no further narrowing is performed, default: 400 results (maximum retrievable per search)
     :param max_retrievals: maximum allowed number of IDs retrievals
     """
-
-    # TODO: handle different cache_location
-
     price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
 
     all_ids = []
@@ -507,8 +504,8 @@ def get_all_article_ids(
 # TODO : Read files local by default or read from s3 bucket
 
 
-def compose_url_id(id_: str, site_url: config.SITE_URL):
-    return f'{site_url}/offers/{id_}'
+def compose_url_id(id: str, site_url: config.SITE_URL):
+    return f'{site_url}/offers/{id}'
 
 
 def get_content_for_article_ids(
@@ -650,7 +647,9 @@ def load_ids_of_all_extracted_articles_s3():
     return all_ids
 
 
-def find_ids_left_to_extract(location: str = 'local'):
+def find_ids_left_to_extract(location: str):
+    if location is None:
+        location = config.LOCATION
 
     if location == 'local':
         ids_known = load_all_known_ids_local()

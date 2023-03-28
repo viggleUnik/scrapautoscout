@@ -1,6 +1,9 @@
 import unittest
 
 from scrapautoscout.scrapper import get_all_article_ids
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_get_all_article_ids(unittest.TestCase):

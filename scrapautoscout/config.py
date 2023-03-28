@@ -14,6 +14,7 @@ FOLDER_ARTICLES = 'articles'
 
 # aws s3
 AWS_S3_BUCKET = 'scrapautoscout-bucket'
+AWS_PROFILE_NAME = 'default'
 
 # Logging
 # *****************************************************************************

@@ -247,10 +247,8 @@ def get_all_ids_for_search_url(
         n_search_results: int = None,
         cache_location: str = 'local',
     ):
-
-    # TODO: cache_folder depends on cache location
     # Create a session using the default profile
-    session = boto3.Session(profile_name='default')
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
@@ -266,7 +264,7 @@ def get_all_ids_for_search_url(
                 ids = json.load(f)
             log.debug(f'loaded {len(ids)} from local cache')
             return ids
-    else:
+    elif cache_location == 's3':
         # load from s3 ids folder if available and stop execution
         s3 = session.client('s3')
         bucket_name = config.AWS_S3_BUCKET
@@ -295,14 +293,10 @@ def get_all_ids_for_search_url(
         # save to cache
         with open(path_file, 'w') as f:
             json.dump(ids, f, indent=2)
-    else:
+    elif cache_location == 's3':
         # save to s3 ids folder
         json_data = json.dumps(ids, indent=2)
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=key,
-            Body=json_data,
-        )
+        s3.put_object(Bucket=bucket_name, Key=key, Body=json_data,)
 
     return ids
 
@@ -623,11 +617,8 @@ def load_ids_of_all_extracted_articles_local() -> List[str]:
 
 
 def load_all_known_ids_s3():
-    # TODO: implement
-    raise NotImplementedError()
-
-    # TODO: init aws session
-    s3 = boto3.resource('s3')
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+    s3 = session.resource('s3')
     bucket = s3.Bucket(config.AWS_S3_BUCKET)
     paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
     all_ids = []
@@ -642,10 +633,9 @@ def load_all_known_ids_s3():
 
 
 def load_ids_of_all_extracted_articles_s3():
-    # TODO: implement
-    raise NotImplementedError()
 
-    s3 = boto3.resource('s3')
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+    s3 = session.resource('s3')
     bucket = s3.Bucket(config.AWS_S3_BUCKET)
     # use pagination to extract all keys, not just first 1000
     paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
@@ -661,6 +651,7 @@ def load_ids_of_all_extracted_articles_s3():
 
 
 def find_ids_left_to_extract(location: str = 'local'):
+
     if location == 'local':
         ids_known = load_all_known_ids_local()
         ids_extracted = load_ids_of_all_extracted_articles_local()
@@ -702,7 +693,7 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
 
 
 def main_extract_json_txt_for_all_known_ids(location: str = 'local', chunk_size: int = 1000):
-    log.info('extract_json_txt_for_known_ids(): Starting...')
+    log.info('main_extract_json_txt_for_all_known_ids(): Starting...')
 
     ids = find_ids_left_to_extract(location)
     n_attempted = 0
@@ -731,5 +722,5 @@ def main_extract_json_txt_for_all_known_ids(location: str = 'local', chunk_size:
 
     pb.display()
     pb.close()
-    log.info('extract_json_txt_for_known_ids(): Done.')
+    log.info('main_extract_json_txt_for_all_known_ids(): Done.')
 

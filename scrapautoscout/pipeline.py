@@ -4,7 +4,7 @@ import argparse
 import json
 
 from scrapautoscout.config import config
-from scrapautoscout.scrapper import get_all_article_ids, find_ids_left_to_extract, extract_json_txt_for_known_ids
+from scrapautoscout.scrapper import get_all_article_ids, find_ids_left_to_extract, main_extract_json_txt_for_all_known_ids
 
 
 def run(**kwargs):
@@ -32,7 +32,7 @@ def run(**kwargs):
         find_ids_left_to_extract(location='local')
 
         log.info('Extract json data of articles...')
-        extract_json_txt_for_known_ids(location='local', chunk_size=100)
+        main_extract_json_txt_for_all_known_ids(location='local', chunk_size=100)
 
 
 if __name__ == '__main__':

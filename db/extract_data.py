@@ -1,7 +1,7 @@
 import json
 from typing import Dict
 import boto3
-import scrapautoscout.config as config
+from scrapautoscout.config import config
 
 
 def get_details_from_raw_json(json_text: str) -> Dict:

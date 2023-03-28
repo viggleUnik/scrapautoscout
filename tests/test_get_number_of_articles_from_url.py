@@ -1,6 +1,9 @@
 import unittest
 
 from scrapautoscout.scrapper import get_numbers_of_articles_from_url, compose_search_url
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_get_all_ids_for_search_url(unittest.TestCase):
@@ -10,3 +13,6 @@ class test_get_all_ids_for_search_url(unittest.TestCase):
         n_ids = get_numbers_of_articles_from_url(url)
         self.assertTrue(n_ids > 0)
         print(f'n_ids={n_ids}')
+
+        from scrapautoscout.config import config
+        print(config.DIR_CACHE)

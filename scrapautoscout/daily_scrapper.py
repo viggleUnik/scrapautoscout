@@ -13,7 +13,7 @@ from datetime import datetime
 
 from scrapautoscout.scrapper import compose_search_url, get_content_from_all_pages, get_article_ids_from_pages, \
     get_hash_from_string, get_numbers_of_articles_from_url, calculate_nr_of_pages
-from scrapautoscout import config
+from scrapautoscout.config import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 
 log = logging.getLogger(os.path.basename(__file__))

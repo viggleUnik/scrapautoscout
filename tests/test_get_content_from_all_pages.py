@@ -2,6 +2,9 @@ import unittest
 from bs4 import BeautifulSoup
 
 from scrapautoscout.scrapper import get_content_from_all_pages
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_get_content_from_all_pages(unittest.TestCase):

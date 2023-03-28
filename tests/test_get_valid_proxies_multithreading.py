@@ -1,6 +1,9 @@
 import unittest
 
 from scrapautoscout.scrapper import get_valid_proxies_multithreading
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_get_all_ids_for_search_url(unittest.TestCase):

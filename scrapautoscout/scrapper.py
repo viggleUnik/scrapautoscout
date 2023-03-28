@@ -13,7 +13,7 @@ import concurrent.futures
 import glob
 from tqdm import tqdm
 
-from scrapautoscout import config
+from scrapautoscout.config import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_msg, update_nested_dict, \
     remove_none_from_dict
@@ -628,7 +628,10 @@ def load_ids_of_all_extracted_articles_s3():
     return all_ids
 
 
-def find_ids_left_to_extract(location: str = 'local'):
+def find_ids_left_to_extract(location: str):
+    if location is None:
+        location = config.LOCATION
+
     if location == 'local':
         ids_known = load_all_known_ids_local()
         ids_extracted = load_ids_of_all_extracted_articles_local()

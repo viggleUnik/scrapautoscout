@@ -2,6 +2,9 @@ import unittest
 from bs4 import BeautifulSoup
 
 from scrapautoscout.scrapper import get_all_article_ids, get_content_for_article_ids
+from scrapautoscout.config import config
+
+config.setup()
 
 
 class test_get_content_for_article_ids(unittest.TestCase):

@@ -252,17 +252,33 @@ def get_all_ids_for_search_url(
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
-    # cache dir and json file with ids
-    dir_cache = f'{config.DIR_CACHE}/{config.FOLDER_IDS}'
-    os.makedirs(dir_cache, exist_ok=True)
-    path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
+    if cache_location == 'local':
+        # cache dir and json file with ids
+        dir_cache = f'{config.DIR_CACHE}/{config.FOLDER_IDS}'
+        os.makedirs(dir_cache, exist_ok=True)
+        path_file = f'{dir_cache}/{get_hash_from_string(search_url)}.json'
 
-    # load from local cache if available and stop execution
-    if os.path.exists(path_file):
-        with open(path_file) as f:
-            ids = json.load(f)
-        log.debug(f'loaded {len(ids)} from local cache')
-        return ids
+        # load from local cache if available and stop execution
+        if os.path.exists(path_file):
+            with open(path_file) as f:
+                ids = json.load(f)
+            log.debug(f'loaded {len(ids)} from local cache')
+            return ids
+    elif cache_location == 's3':
+        # load from s3 ids folder if available and stop execution
+        s3 = session.client('s3')
+        bucket_name = config.AWS_S3_BUCKET
+        key = f'{config.FOLDER_IDS}/{get_hash_from_string(search_url)}.json'
+
+        # Check if the object exists
+        try:
+            s3.head_object(Bucket=bucket_name, Key=key)
+        except:
+            log.info(f"JSON file '{key}' does not exist in S3 bucket '{bucket_name}'")
+        else:
+            s3_object = s3.get_object(Bucket=bucket_name, Key=key)
+            ids = s3_object['Body'].read().decode('utf-8')
+            return ids
 
     if n_search_results is None:
         n_search_results = get_numbers_of_articles_from_url(search_url)
@@ -273,9 +289,14 @@ def get_all_ids_for_search_url(
     ids = get_article_ids_from_pages(list_bs_pages, n_search_results)
     ids = list(set(ids))  # unique IDs
 
-    # save to cache
-    with open(path_file, 'w') as f:
-        json.dump(ids, f, indent=2)
+    if cache_location == 'local':
+        # save to cache
+        with open(path_file, 'w') as f:
+            json.dump(ids, f, indent=2)
+    elif cache_location == 's3':
+        # save to s3 ids folder
+        json_data = json.dumps(ids, indent=2)
+        s3.put_object(Bucket=bucket_name, Key=key, Body=json_data,)
 
     return ids
 
@@ -593,10 +614,8 @@ def load_ids_of_all_extracted_articles_local() -> List[str]:
 
 
 def load_all_known_ids_s3():
-    # TODO: implement
-    raise NotImplementedError()
-
-    s3 = boto3.resource('s3')
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+    s3 = session.resource('s3')
     bucket = s3.Bucket(config.AWS_S3_BUCKET)
     paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
     all_ids = []
@@ -604,16 +623,16 @@ def load_all_known_ids_s3():
     for page in paginator:
         for obj in page:
             # TODO: read IDs from json file and append to all_ids
-            pass
+            ids = json.loads(obj.get()['Body'].read().decode('utf-8'))
+            all_ids.extend(ids)
 
     return all_ids
 
 
 def load_ids_of_all_extracted_articles_s3():
-    # TODO: implement
-    raise NotImplementedError()
 
-    s3 = boto3.resource('s3')
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+    s3 = session.resource('s3')
     bucket = s3.Bucket(config.AWS_S3_BUCKET)
     # use pagination to extract all keys, not just first 1000
     paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
@@ -672,8 +691,8 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
         raise ValueError(f'location={location} not recognized')
 
 
-def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 1000):
-    log.info('extract_json_txt_for_known_ids(): Starting...')
+def main_extract_json_txt_for_all_known_ids(location: str = 'local', chunk_size: int = 1000):
+    log.info('main_extract_json_txt_for_all_known_ids(): Starting...')
 
     ids = find_ids_left_to_extract(location)
     n_attempted = 0
@@ -702,5 +721,5 @@ def extract_json_txt_for_known_ids(location: str = 'local', chunk_size: int = 10
 
     pb.display()
     pb.close()
-    log.info('extract_json_txt_for_known_ids(): Done.')
+    log.info('main_extract_json_txt_for_all_known_ids(): Done.')
 

@@ -38,13 +38,13 @@ else:
     existing_keys = []
 
 prefix = 'initial/'
-
+keys = []
 paginator = client.get_paginator('list_objects_v2')
 for result in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
     if 'Contents' in result:
         # Append object keys to list
         # keys += [obj['Key'] for obj in result['Contents']]
-        keys +=
+        keys += [obj['Key'] for obj in result['Contents']]
 
 counter = 0
 for key in keys:

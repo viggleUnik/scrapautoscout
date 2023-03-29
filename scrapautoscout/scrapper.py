@@ -647,7 +647,7 @@ def load_ids_of_all_extracted_articles_s3():
     return all_ids
 
 
-def find_ids_left_to_extract(location: str):
+def find_ids_left_to_extract(location: str = None):
     if location is None:
         location = config.LOCATION
 
@@ -691,8 +691,11 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
         raise ValueError(f'location={location} not recognized')
 
 
-def main_extract_json_txt_for_all_known_ids(location: str = 'local', chunk_size: int = 1000):
+def main_extract_json_txt_for_all_known_ids(location: str = None, chunk_size: int = 1000):
     log.info('main_extract_json_txt_for_all_known_ids(): Starting...')
+
+    if location is None:
+        location = config.LOCATION
 
     ids = find_ids_left_to_extract(location)
     n_attempted = 0

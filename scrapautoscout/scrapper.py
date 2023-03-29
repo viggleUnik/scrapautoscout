@@ -554,7 +554,7 @@ def transform_vehicle_equipment(obj: Dict):
     keys = ['comfortAndConvenience', 'entertainmentAndMedia', 'extras', 'safetyAndSecurity']
     for k in keys:
         elems = obj['props']['pageProps']['listingDetails']['vehicle'].get('equipment', {}).get(k, [])
-        if len(elems) > 0:
+        if len(elems) > 0 and all(isinstance(e, dict) for e in elems):
             obj['props']['pageProps']['listingDetails']['vehicle']['equipment'][k] = [e['id'] for e in elems]
     return obj
 

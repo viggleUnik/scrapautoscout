@@ -148,12 +148,16 @@ class config:
 
     @staticmethod
     def setup(**kwargs):
+        # setup global configs to be used by this application
+        # parameters provided via kwargs will override the default configs specified in static attributes of this class
         config.override_defaults(**kwargs)
         config.setup_dirs()
         config.setup_logging()
 
     @staticmethod
     def override_defaults(**kwargs):
+        # overrides the default config values specified in static attributes of this class
+
         if kwargs.get('LOCATION') is not None:
             config.LOCATION = kwargs.get('LOCATION')
 

@@ -29,10 +29,10 @@ def run(**kwargs):
         get_all_article_ids(makers=[maker])
 
         log.info('Find article IDs left to extract...')
-        find_ids_left_to_extract(location='local')
+        find_ids_left_to_extract()
 
         log.info('Extract json data of articles...')
-        main_extract_json_txt_for_all_known_ids(location='local', chunk_size=100)
+        main_extract_json_txt_for_all_known_ids()
 
 
 if __name__ == '__main__':

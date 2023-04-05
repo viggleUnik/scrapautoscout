@@ -248,7 +248,7 @@ def get_all_ids_for_search_url(
         cache_location: str = 'local',
     ):
 
-    # TODO: cache_folder depends on cache location
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
 
     log.debug(f'running get_all_ids_for_search_url(search_url={search_url})')
 
@@ -615,34 +615,36 @@ def load_ids_of_all_extracted_articles_local() -> List[str]:
 
 def load_all_known_ids_s3():
     session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
-    s3 = session.resource('s3')
-    bucket = s3.Bucket(config.AWS_S3_BUCKET)
-    paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
+    s3 = session.client('s3')
+    # use pagination to extract all keys, not just first 1000
+    paginator = s3.get_paginator('list_objects')
+    page_iterator = paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_IDS)
     all_ids = []
 
-    for page in paginator:
-        for obj in page:
-            # TODO: read IDs from json file and append to all_ids
-            ids = json.loads(obj.get()['Body'].read().decode('utf-8'))
+    for page in page_iterator:
+        for obj in page['Contents']:
+            key = obj.get('Key')
+            response = s3.get_object(Bucket=config.AWS_S3_BUCKET, Key=key)
+            ids = json.loads(response['Body'].read().decode('utf-8'))
             all_ids.extend(ids)
 
     return all_ids
 
 
 def load_ids_of_all_extracted_articles_s3():
-
     session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
-    s3 = session.resource('s3')
-    bucket = s3.Bucket(config.AWS_S3_BUCKET)
+    s3 = session.client('s3')
     # use pagination to extract all keys, not just first 1000
-    paginator = bucket.objects.paginate(Prefix=config.FOLDER_IDS)
+    paginator = s3.get_paginator('list_objects')
+    page_iterator = paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_IDS)
+
     all_ids = []
 
-    for page in paginator:
-        for obj in page:
-            if obj.key.endswith('.json'):
-                file_base_name = obj.key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
-                all_ids.append(file_base_name.replace('.json', ''))
+    for page in page_iterator:
+        for obj in page['Contents']:
+            key = obj.get('Key')
+            file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
+            all_ids.append(file_base_name.replace('.json', ''))
 
     return all_ids
 
@@ -678,8 +680,11 @@ def save_json_txt_to_local(json_txt, id_article):
 
 
 def save_json_txt_to_s3(json_txt, id_article):
-    # TODO
-    raise NotImplementedError()
+    session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+    s3 = session.client('s3')
+    json_data = json.dumps(json_txt)
+    key = f'{config.FOLDER_ARTICLES}/{id_article}.json'
+    s3.put_object(Bucket=config.AWS_S3_BUCKET, Key=key, Body=json_data)
 
 
 def save_json_txt(json_txt, id_article, location: str = 'local'):

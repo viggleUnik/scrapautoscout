@@ -12,3 +12,4 @@ test/__pycache__/
 /scrapautoscout.egg-info
 /build
 **/.DS_Store
+raw_code.py

@@ -87,3 +87,9 @@ class test_get_all_article_ids(unittest.TestCase):
     #   "{\"adage\": 365, \"maker\": \"dodge\", \"fregfrom\": 2002, \"fregto\": 2007}": 194,
     #   "{\"adage\": 365, \"maker\": \"dodge\", \"fregfrom\": 1980, \"fregto\": 2001}": 92
     # }
+
+    def test_cadillac_s3(self):
+        ids = get_all_article_ids(makers=['Cadillac'], cache_location='s3')
+        print(f'{len(ids)} found')
+        self.assertTrue(len(ids) > 0)
+

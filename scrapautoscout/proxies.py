@@ -57,6 +57,10 @@ def get_valid_proxies_multithreading(max_workers=100, cache_age_sec=300) -> List
     """ scrape proxy list from site https://free-proxy-list.net/"""
     log.debug(f'start get_valid_proxies_multithreading()...')
 
+    if config.DIR_CACHE is None:
+        config.DIR_CACHE = config.FOLDER_CACHE
+        os.makedirs(config.DIR_CACHE, exist_ok=True)
+
     # load from local cache if available
     filepathcache = f'{config.DIR_CACHE}/proxies.json'
     exists_and_not_old = os.path.exists(filepathcache) and file_age_sec(filepathcache) < cache_age_sec

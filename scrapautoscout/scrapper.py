@@ -13,6 +13,7 @@ import concurrent.futures
 import glob
 from tqdm import tqdm
 
+
 from scrapautoscout.config import config
 from scrapautoscout.proxies import get_valid_proxies_multithreading
 from scrapautoscout.utils import format_seconds, get_hash_from_string, trunc_msg, update_nested_dict, \
@@ -277,7 +278,7 @@ def get_all_ids_for_search_url(
             log.info(f"JSON file '{key}' does not exist in S3 bucket '{bucket_name}'")
         else:
             s3_object = s3.get_object(Bucket=bucket_name, Key=key)
-            ids = s3_object['Body'].read().decode('utf-8')
+            ids = json.loads(s3_object['Body'].read().decode('utf-8'))
             return ids
 
     if n_search_results is None:
@@ -296,7 +297,10 @@ def get_all_ids_for_search_url(
     elif cache_location == 's3':
         # save to s3 ids folder
         json_data = json.dumps(ids, indent=2)
-        s3.put_object(Bucket=bucket_name, Key=key, Body=json_data,)
+        try:
+            s3.put_object(Bucket=bucket_name, Key=key, Body=json_data,)
+        except ClientError as e:
+            log.error(f'Error putting object to S3: {e}')
 
     return ids
 
@@ -381,7 +385,7 @@ def get_all_article_ids(
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
         price_step: int = 500,
-        cache_location: str = 'local',
+        cache_location: str = config.LOCATION,
         n_too_many: int = 1_000_000,
 ):
     """
@@ -440,7 +444,7 @@ def get_all_article_ids(
             continue
         elif n_results <= max_results:
             # if less than maximum results, retrieve all articles IDs, as we don't want to narrow the filter further
-            ids = get_all_ids_for_search_url(search_url, n_results)
+            ids = get_all_ids_for_search_url(search_url, n_results, cache_location)
             all_ids.extend(ids)
             n_retrievals += 1
         elif n_results > n_too_many:
@@ -493,7 +497,7 @@ def get_all_article_ids(
                 continue
 
             # if the set of parameters could not be narrowed more, then retrieve just the first 400 IDs for this search
-            ids = get_all_ids_for_search_url(search_url, n_results)
+            ids = get_all_ids_for_search_url(search_url, n_results, cache_location)
             all_ids.extend(ids)
             n_retrievals += 1
 
@@ -584,13 +588,26 @@ def truncate_useless_data_from_json_text(json_txt) -> str:
 
 
 def find_all_json_files_with_ids(location: str = 'local'):
+
     if location == 'local':
         files_json = glob.glob(f'{config.DIR_CACHE}/{config.FOLDER_IDS}/*.json')
         files_json = [os.path.basename(f).replace('.json', '') for f in files_json]
         return files_json
     elif location == 's3':
-        # TODO:
-        raise NotImplementedError()
+        files_json = []
+        session = boto3.Session(profile_name=config.AWS_PROFILE_NAME)
+        s3 = session.client('s3')
+        paginator = s3.get_paginator('list_objects')
+        page_iterator = paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_IDS)
+        try:
+            for page in page_iterator:
+                for obj in page['Contents']:
+                    key = obj.get('Key')
+                    file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
+                    files_json.append(file_base_name.replace('.json', ''))
+        except Exception as e:
+            log.error(f"Error: {e}")
+        return files_json
     else:
         raise ValueError(f'location={location} not recognized')
 
@@ -620,14 +637,17 @@ def load_all_known_ids_s3():
     paginator = s3.get_paginator('list_objects')
     page_iterator = paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_IDS)
     all_ids = []
+    try:
+        for page in page_iterator:
+            for obj in page['Contents']:
+                key = obj.get('Key')
+                response = s3.get_object(Bucket=config.AWS_S3_BUCKET, Key=key)
+                ids = json.loads(response['Body'].read().decode('utf-8'))
+                all_ids.extend(ids)
+    except Exception as e:
+        log.error(f'Error getting obj from s3 {e}')
 
-    for page in page_iterator:
-        for obj in page['Contents']:
-            key = obj.get('Key')
-            response = s3.get_object(Bucket=config.AWS_S3_BUCKET, Key=key)
-            ids = json.loads(response['Body'].read().decode('utf-8'))
-            all_ids.extend(ids)
-
+    log.info(f'All Known Ids {len(all_ids)} ')
     return all_ids
 
 
@@ -636,17 +656,18 @@ def load_ids_of_all_extracted_articles_s3():
     s3 = session.client('s3')
     # use pagination to extract all keys, not just first 1000
     paginator = s3.get_paginator('list_objects')
-    page_iterator = paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_IDS)
+    all_ids_extracted = []
+    try:
+        for page in paginator.paginate(Bucket=config.AWS_S3_BUCKET, Prefix=config.FOLDER_ARTICLES):
+            for obj in page['Contents']:
+                key = obj.get('Key')
+                file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
+                all_ids_extracted.append(file_base_name.replace('.json', ''))
+    except Exception as e:
+        log.error(f'Error listing objects in s3: {e}')
 
-    all_ids = []
-
-    for page in page_iterator:
-        for obj in page['Contents']:
-            key = obj.get('Key')
-            file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
-            all_ids.append(file_base_name.replace('.json', ''))
-
-    return all_ids
+    log.info(f'Extracted Ids {len(all_ids_extracted)}')
+    return all_ids_extracted
 
 
 def find_ids_left_to_extract(location: str = None):
@@ -684,7 +705,12 @@ def save_json_txt_to_s3(json_txt, id_article):
     s3 = session.client('s3')
     json_data = json.dumps(json_txt)
     key = f'{config.FOLDER_ARTICLES}/{id_article}.json'
-    s3.put_object(Bucket=config.AWS_S3_BUCKET, Key=key, Body=json_data)
+    try:
+        s3.put_object(Bucket=config.AWS_S3_BUCKET, Key=key, Body=json_data)
+    except Exception as e:
+        log.error(f'Error putting object to S3: {e}')
+
+
 
 
 def save_json_txt(json_txt, id_article, location: str = 'local'):

@@ -13,6 +13,26 @@ To install this package you have to download it:
 ```shell
 pip install scrapautoscout
 ```
- After installation you can run it by command:
+ **After installation, you can run it locally with default parameters by command:**
 
-``` scrapautoscout --dir_out cache_folder_ex ```   
+```shell
+ scrapautoscout 
+ ```   
+
+ **Or you can see this list of parameters:** 
+```shell
+scrapautoscout --help
+```
+
+ + --LOCATION LOCATION - 'local' or 's3'
+ + --DIR_CACHE DIR_CACHE - Where to save artifacts. Default: 'cache' (relative to project root)
+ + --AWS_PROFILE_NAME AWS_PROFILE_NAME - AWS profile name
+ + --AWS_S3_BUCKET AWS_S3_BUCKET - AWS S3 bucket
+ + --MAKERS MAKERS [MAKERS ] - List of makers delimited by space
+ + --LOGS_LEVEL LOGS_LEVEL - Log level, e.g. 'debug', 'info', 'error'
+
+**After this you can run it with specified parameters, example:**
+
+```shell
+scrapautoscout --LOCATION 's3' 
+```

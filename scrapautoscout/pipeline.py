@@ -37,7 +37,6 @@ def run():
     args = parser.parse_args()
 
     config.setup(**vars(args))
-    config.YEAR_RANGE = ()
 
     log = logging.getLogger(os.path.basename(__file__))
     log.info(f'Running {os.path.basename(__file__)}, with parameters: \n' + json.dumps(vars(args), indent=2))

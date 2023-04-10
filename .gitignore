@@ -13,3 +13,4 @@ test/__pycache__/
 /build
 **/.DS_Store
 raw_code.py
+scrapautoscout/__pycache__/

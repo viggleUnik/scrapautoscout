@@ -299,7 +299,7 @@ def get_all_ids_for_search_url(
         json_data = json.dumps(ids, indent=2)
         try:
             s3.put_object(Bucket=bucket_name, Key=key, Body=json_data,)
-        except ClientError as e:
+        except Exception as e:
             log.error(f'Error putting object to S3: {e}')
 
     return ids
@@ -378,14 +378,14 @@ def calculate_nr_of_pages(
 
 
 def get_all_article_ids(
-        makers: List[str] = config.MAKERS,
-        year_range: Tuple[int, int] = config.YEAR_RANGE,
-        price_range: Tuple[int, int] = config.PRICE_RANGE,
-        adage: int = config.ADAGE,
+        makers: List[str] = None,
+        year_range: Tuple[int, int] = None,
+        price_range: Tuple[int, int] = None,
+        adage: int = None,
         max_results: int = config.MAX_RESULTS,
         max_retrievals: int = None,
         price_step: int = 500,
-        cache_location: str = config.LOCATION,
+        cache_location: str = None,
         n_too_many: int = 1_000_000,
 ):
     """
@@ -394,6 +394,25 @@ def get_all_article_ids(
         no further narrowing is performed, default: 400 results (maximum retrievable per search)
     :param max_retrievals: maximum allowed number of IDs retrievals
     """
+
+    # Take variables from 'config'
+    if cache_location is None:
+        cache_location = config.LOCATION
+
+    if makers is None:
+        makers = config.MAKERS
+
+    if year_range is None:
+        year_range = config.YEAR_RANGE
+
+    if price_range is None:
+        price_range = config.PRICE_RANGE
+
+    if adage is None:
+        adage = config.ADAGE
+
+
+
     price_step = math.ceil(price_step / 100) * 100  # make sure is a multiple of 100
 
     all_ids = []
@@ -606,7 +625,7 @@ def find_all_json_files_with_ids(location: str = 'local'):
                     file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
                     files_json.append(file_base_name.replace('.json', ''))
         except Exception as e:
-            log.error(f"Error: {e}")
+            log.error(f"Error no files with ids: {e}")
         return files_json
     else:
         raise ValueError(f'location={location} not recognized')
@@ -645,7 +664,7 @@ def load_all_known_ids_s3():
                 ids = json.loads(response['Body'].read().decode('utf-8'))
                 all_ids.extend(ids)
     except Exception as e:
-        log.error(f'Error getting obj from s3 {e}')
+        log.error(f'Error getting all known ids from s3, no {e}')
 
     log.info(f'All Known Ids {len(all_ids)} ')
     return all_ids
@@ -664,7 +683,7 @@ def load_ids_of_all_extracted_articles_s3():
                 file_base_name = key.split('/')[-1]  # e.g. 0a99495b-9bbc-4f0e-acfe-c6930dca8ac7.json
                 all_ids_extracted.append(file_base_name.replace('.json', ''))
     except Exception as e:
-        log.error(f'Error listing objects in s3: {e}')
+        log.error(f'Error loading ids of extracted article from s3, no {e}')
 
     log.info(f'Extracted Ids {len(all_ids_extracted)}')
     return all_ids_extracted

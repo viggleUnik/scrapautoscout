@@ -35,9 +35,9 @@ def run():
     parser.add_argument('--MAKERS', nargs='+', help='List of makers delimited by space')
     parser.add_argument('--LOGS_LEVEL', help="Log level, e.g. 'debug', 'info', 'error'")
     args = parser.parse_args()
-    # args.MAKERS = ['Porsche']
 
     config.setup(**vars(args))
+    config.YEAR_RANGE = ()
 
     log = logging.getLogger(os.path.basename(__file__))
     log.info(f'Running {os.path.basename(__file__)}, with parameters: \n' + json.dumps(vars(args), indent=2))

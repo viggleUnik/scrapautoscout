@@ -1,14 +1,11 @@
 from setuptools import setup
 from io import open
 
-VERSION = '1.1.6'
+VERSION = '1.1.8'
 DESCRIPTION = 'autoscout24 web scrapper'
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-
-with open("requirements.txt", "r") as fh:
-    requirements = fh.read().splitlines()
 
 setup(
     name="scrapautoscout",
@@ -21,7 +18,14 @@ setup(
     url='https://github.com/viggleUnik/scrapautoscout',
     license='MIT',
     packages=['scrapautoscout'],
-    install_requires=requirements,
+    install_requires=[
+        'requests==2.28.2',
+        'beautifulsoup4==4.11.1',
+        'psycopg2-binary==2.9.5',
+        'boto3==1.26.86',
+        's3fs',
+        'tqdm',
+    ],
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 1 - Planning",

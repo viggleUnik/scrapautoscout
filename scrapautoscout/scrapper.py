@@ -741,7 +741,7 @@ def save_json_txt(json_txt, id_article, location: str = 'local'):
         raise ValueError(f'location={location} not recognized')
 
 
-def main_extract_json_txt_for_all_known_ids(location: str = None, chunk_size: int = 1000):
+def main_extract_json_txt_for_all_known_ids(location: str = None, chunk_size: int = 200):
     log.info('main_extract_json_txt_for_all_known_ids(): Starting...')
 
     if location is None:

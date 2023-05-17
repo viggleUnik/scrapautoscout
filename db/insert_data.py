@@ -6,46 +6,30 @@ import os
 
 log = logging.getLogger(os.path.basename(__file__))
 
-def insert_into_car_table(data: Dict):
-    # insert query with check if record doesn't already exist
-    insert_query = """ INSERT INTO car( car_id,
-                                        price,
-                                        make,
-                                        model,
-                                        model_version,
-                                        mileage_in_km,
-                                        registration_date,
-                                        body_type,
-                                        numberOfSeats,
-                                        numberOfDoors,
-                                        body_color,
-                                        power_in_hp,
-                                        transmission,
-                                        gears,
-                                        rawDisplacementInCCM,
-                                        fuel_category,
-                                        city,
-                                        street,
-                                        seller,
-                                        created_at)
-        VALUES (%s, %s, %s, %s, %s,%s, %s,%s, %s,%s, %s,%s, %s,%s, %s,%s,%s, %s,%s, CURRENT_DATE) 
-        ON CONFLICT DO NOTHING
-    """
-    record_to_insert = (
-        data['car_id'], int(data['price']), data['make'], data['model'], data['model_version'],
-        int(data['mileage_in_km']), data['registration_date'], data['body_type'],
-        int(data['numberOfSeats']), int(data['numberOfDoors']), data['body_color'],
-        int(data['power_in_hp']), data['transmission'], data['gears'], int(data['rawDisplacementInCCM']),
-        data['fuel_category'], data['city'], data['street'], data['seller'])
+
+def insert_into_car_table(data: Dict, db_params: Dict = None):
+
+    fields = list(data.keys())
+    values = list(data.values())
+
+    # Construct the SQL statement dynamically
+    sql = "INSERT INTO car ({}) VALUES ({}) ON CONFLICT DO NOTHING".format(
+        ', '.join(fields),
+        ', '.join(['%s'] * len(fields))
+    )
 
     conn = None
     try:
-        # read the connection parameters
-        params = config()
+        if db_params is None:
+            # read the connection parameters
+            params = config()
+        else:
+            params = db_params
+
         # connect to the PostgreSQL server
         conn = psycopg2.connect(**params)
         cur = conn.cursor()
-        cur.execute(insert_query, record_to_insert)
+        cur.execute(sql, values)
         # close communication with the PostgreSQL database server
         cur.close()
         # commit the changes

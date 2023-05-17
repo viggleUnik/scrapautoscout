@@ -5,8 +5,8 @@ venv/
 __pycache__/
 artifacts
 test/__pycache__/
-/db/local_database.ini
-/db/rds_database.ini
+/local_database.ini
+/rds_database.ini
 /dist
 /.pytest_cache
 /scrapautoscout.egg-info

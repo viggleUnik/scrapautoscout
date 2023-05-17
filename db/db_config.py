@@ -3,7 +3,9 @@ import os
 
 current_file_path = os.path.abspath(__file__)
 package_directory = os.path.dirname(current_file_path)
-data_file_path = os.path.join(package_directory, 'rds_database.ini')
+# data_file_path = os.path.join(package_directory, '../rds_database.ini')
+
+data_file_path = '/Users/vicolc/learn/scrapautoscout/rds_database.ini'
 
 def config(filename=data_file_path, section='postgresql'):
 

@@ -28,6 +28,7 @@ def run():
         prog='Scrapper autoscout24',
         description='Full pipeline to extract articles from autoscout24'
     )
+    parser.add_argument('--ADAGE', help="Age of listings")
     parser.add_argument('--LOCATION', help="'local' or 's3'")
     parser.add_argument('--DIR_CACHE', help="Where to save artifacts. Default: 'cache' (relative to project root)")
     parser.add_argument('--AWS_PROFILE_NAME', help='AWS profile name')
